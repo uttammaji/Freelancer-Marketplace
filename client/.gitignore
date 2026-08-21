@@ -7,15 +7,9 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Dependencies
 node_modules
-.pnp
-.pnp.js
-
-# Build outputs
 dist
 dist-ssr
-build
 *.local
 
 # Editor directories and files
@@ -28,30 +22,3 @@ build
 *.njsproj
 *.sln
 *.sw?
-
-# Environment variables
-.env
-.env.*
-!.env.example
-
-# TypeScript
-*.tsbuildinfo
-
-# Testing
-coverage
-.nyc_output
-
-# Package manager locks (optional - uncomment if needed)
-# yarn.lock
-# package-lock.json
-# pnpm-lock.yaml
-
-# OS files
-Thumbs.db
-Desktop.ini
-
-# Temporary files
-*.tmp
-*.temp
-temp/
-tmp/
