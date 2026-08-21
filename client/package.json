@@ -1,5 +1,5 @@
 {
-  "name": "freelancerproject",
+  "name": "skillhire",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,8 +10,18 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "autoprefixer": "^10.5.4",
+    "canvas-confetti": "^1.9.4",
+    "clsx": "^2.1.1",
+    "framer-motion": "^13.1.1",
+    "lucide-react": "^1.33.0",
+    "postcss": "^8.5.26",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.2",
+    "recharts": "^3.10.1",
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss": "^3.4.19"
   },
   "devDependencies": {
     "@types/react": "^19.2.17",
