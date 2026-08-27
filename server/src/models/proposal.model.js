@@ -69,4 +69,4 @@ proposalSchema.index({
     unique: true,
 });
 
-export default mongoose.model("Proposal", proposalSchema);
+export const Proposal = mongoose.model("Proposal", proposalSchema);

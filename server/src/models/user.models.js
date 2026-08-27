@@ -3,6 +3,11 @@ import mongoose, { Schema } from 'mongoose';
 
 // User Schema Definition
 const userSchema = new Schema({
+    name: {
+        type: String,
+        required: true,       
+        trim: true             
+    },
     // Username
     username: {
         type: String,

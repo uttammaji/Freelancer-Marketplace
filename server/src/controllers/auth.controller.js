@@ -1,20 +1,32 @@
 // server/src/controllers/auth.controller.js
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { User } from '../models/user.models.js';
 import { generateToken, generateRefreshToken } from '../utils/generateToken.js';
 import { AppError, asyncHandler } from '../middleware/error.middleware.js';
 import { sendEmail } from '../utils/sendEmail.js';
+import { welcomeEmailTemplate } from '../utils/emailTemplates.js';
 
 // @desc    Register user
 // @route   POST /api/auth/register
 // @access  Public
 export const register = asyncHandler(async (req, res, next) => {
-  const { name, email, password, role } = req.body;
+  const { name, email, password, role, username } = req.body;
+  // Validate input
+   if (!name) {
+    throw new AppError('Please provide your name', 400);
+  }
 
   // Check if user exists
-  const userExists = await User.findOne({ email });
+  const userExists = await User.findOne({ 
+    $or: [
+      { email },
+      { username }
+    ]
+  });
+  
   if (userExists) {
-    throw new AppError('User already exists with this email', 400);
+    throw new AppError('User already exists with this email or username', 400);
   }
 
   // Validate role
@@ -30,6 +42,7 @@ export const register = asyncHandler(async (req, res, next) => {
   const user = await User.create({
     name,
     email,
+    username: username || email.split('@')[0],
     password: hashedPassword,
     role
   });
@@ -43,19 +56,23 @@ export const register = asyncHandler(async (req, res, next) => {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
-    maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+    maxAge: 30 * 24 * 60 * 60 * 1000
   });
 
-  // Send welcome email
+  // Send welcome email 
   try {
+    console.log('User for email:', user); 
     await sendEmail({
       email: user.email,
       subject: 'Welcome to Freelancer Marketplace',
-      html: `<h1>Welcome ${user.name}!</h1><p>Your account has been created successfully.</p>`
+      html: welcomeEmailTemplate({
+        name: user.name,
+        email: user.email,
+        role: user.role
+      })
     });
   } catch (emailError) {
-    console.error('Welcome email failed:', emailError);
-    
+    console.error('Welcome email failed:', emailError.message);
   }
 
   res.status(201).json({
@@ -66,6 +83,7 @@ export const register = asyncHandler(async (req, res, next) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      username: user.username,
       avatar: user.avatar
     }
   });
@@ -95,9 +113,13 @@ export const login = asyncHandler(async (req, res, next) => {
   }
 
   // Check if user is active
-  if (user.status === 'suspended') {
-    throw new AppError('Your account has been suspended. Please contact support', 403);
+  if (user.isBlocked) {
+    throw new AppError('Your account has been blocked. Please contact support', 403);
   }
+
+  // Update last login
+  user.lastLogin = new Date();
+  await user.save();
 
   // Generate tokens
   const token = generateToken(user._id);
@@ -119,6 +141,7 @@ export const login = asyncHandler(async (req, res, next) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      username: user.username,
       avatar: user.avatar
     }
   });

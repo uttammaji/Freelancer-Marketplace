@@ -74,7 +74,7 @@ reviewSchema.index({
     unique: true,
 });
 
-export default mongoose.model(
+export const Review = mongoose.model(
     "Review",
     reviewSchema
 );

@@ -42,4 +42,4 @@ const skillSchema = new mongoose.Schema({
     timestamps: true,
 });
 
-export default mongoose.model("Skill", skillSchema);
+export const Skill = mongoose.model("Skill", skillSchema);

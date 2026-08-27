@@ -1,5 +1,5 @@
 // server/src/controllers/profile.controller.js
-import { Profile } from '../models/profile.model.js';
+import { Profile } from "../models/profile.model.js";
 import { User } from '../models/user.models.js';
 import { AppError, asyncHandler } from '../middleware/error.middleware.js';
 

@@ -79,4 +79,4 @@ const contractSchema = new mongoose.Schema({
     timestamps: true,
 });
 
-export default mongoose.model("Contract", contractSchema);
+export const Contract = mongoose.model("Contract", contractSchema);

@@ -1,26 +1,20 @@
 // server/src/database/dbConnection.js
 import mongoose from "mongoose";
 
-/**
- * Connect to MongoDB database
- * Uses MONGODB_URL from environment variables
- * Exits process if connection fails
- */
 const connectDB = async () => {
-    try {
-        // Attempt to connect to MongoDB using connection string from .env
-        const connectInstance = await mongoose.connect(
-            `${process.env.MONGODB_URL}`
-        );
+    const mongoUrl = process.env.MONGODB_URL;
 
-        // Log success with host name
-        console.log(
-            `MongoDB Connected: ${connectInstance.connection.host}`
-        );
+    if (!mongoUrl) {
+        throw new Error("MONGODB_URL is not configured");
+    }
+
+    try {
+        const connection = await mongoose.connect(mongoUrl);
+
+        console.log(`MongoDB Connected: ${connection.connection.host}`);
     } catch (error) {
-        // Log error and exit process if connection fails
-        console.error("MongoDB Error:", error);
-        process.exit(1);
+        console.error("MongoDB Error:", error.message);
+        throw error;
     }
 };
 

@@ -115,7 +115,7 @@ const disputeSchema = new mongoose.Schema({
     timestamps: true,
 });
 
-export default mongoose.model(
+export const Dispute = mongoose.model(
     "Dispute",
     disputeSchema
 );

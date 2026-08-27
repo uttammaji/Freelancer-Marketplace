@@ -63,7 +63,7 @@ portfolioSchema.index({
     createdAt: -1,
 });
 
-export default mongoose.model(
+export const Portfolio = mongoose.model(
     "Portfolio",
     portfolioSchema
 );

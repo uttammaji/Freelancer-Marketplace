@@ -39,7 +39,7 @@ conversationSchema.index({
     updatedAt: -1,
 });
 
-export default mongoose.model(
+export const Conversation = mongoose.model(
     "Conversation",
     conversationSchema
 );

@@ -82,7 +82,7 @@ transactionSchema.index({
     createdAt: -1,
 });
 
-export default mongoose.model(
+export const Transaction = mongoose.model(
     "Transaction",
     transactionSchema
 );
