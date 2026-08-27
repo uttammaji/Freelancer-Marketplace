@@ -21,9 +21,11 @@ app.use(express.static("public"));
 
 // Import routes
 import authRoutes from './routes/auth.routes.js';
+import profileRoutes from './routes/profile.routes.js';
 
 // Use routes
 app.use('/api/auth', authRoutes);
+app.use('/api/profile', profileRoutes);
 
 // Import error handler
 import { errorHandler } from './middleware/error.middleware.js';
