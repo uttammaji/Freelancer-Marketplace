@@ -23,11 +23,13 @@ app.use(express.static("public"));
 import authRoutes from './routes/auth.routes.js';
 import profileRoutes from './routes/profile.routes.js';
 import projectRoutes from './routes/project.routes.js';
+import proposalRoutes from './routes/proposal.routes.js';
 
 // Use routes
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/projects', projectRoutes);
+app.use('/api/proposals', proposalRoutes);
 
 // Import error handler
 import { errorHandler } from './middleware/error.middleware.js';
