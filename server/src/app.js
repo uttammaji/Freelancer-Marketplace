@@ -19,6 +19,9 @@ app.use(cookieParser());
 // Static file serve
 app.use(express.static("public"));
 
+// Serve uploaded files
+app.use('/uploads', express.static('uploads'));
+
 // Import routes
 import authRoutes from './routes/auth.routes.js';
 import profileRoutes from './routes/profile.routes.js';
