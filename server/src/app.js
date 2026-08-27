@@ -27,6 +27,10 @@ import proposalRoutes from './routes/proposal.routes.js';
 import categoryRoutes from './routes/category.routes.js'; 
 import skillRoutes from './routes/skill.routes.js'; 
 import contractRoutes from './routes/contract.routes.js'; 
+import reviewRoutes from './routes/review.routes.js';
+import portfolioRoutes from './routes/portfolio.routes.js';
+import notificationRoutes from './routes/notification.routes.js';
+import messageRoutes from './routes/message.routes.js';
 
 
 // Use routes
@@ -37,6 +41,10 @@ app.use('/api/proposals', proposalRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/skills', skillRoutes);
 app.use('/api/contracts', contractRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/portfolios', portfolioRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/messages', messageRoutes);
 
 // Import error handler
 import { errorHandler } from './middleware/error.middleware.js';
