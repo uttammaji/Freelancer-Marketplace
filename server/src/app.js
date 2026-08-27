@@ -26,6 +26,7 @@ import projectRoutes from './routes/project.routes.js';
 import proposalRoutes from './routes/proposal.routes.js';
 import categoryRoutes from './routes/category.routes.js'; 
 import skillRoutes from './routes/skill.routes.js'; 
+import contractRoutes from './routes/contract.routes.js'; 
 
 
 // Use routes
@@ -35,6 +36,7 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/proposals', proposalRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/skills', skillRoutes);
+app.use('/api/contracts', contractRoutes);
 
 // Import error handler
 import { errorHandler } from './middleware/error.middleware.js';
