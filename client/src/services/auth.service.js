@@ -37,15 +37,15 @@ export const resendLoginOTP = async (email) => {
   return response.data;
 };
 
-// Forgot password
+// reset password - Step 1: Send reset OTP
 export const forgotPassword = async (email) => {
-  const response = await api.post('/auth/forgot-password', { email });
+  const response = await api.post('/auth/send-reset-otp', { email });
   return response.data;
 };
 
-// Reset password
+// reset password - Step 2: Verify reset OTP and update password
 export const resetPassword = async (email, otp, newPassword) => {
-  const response = await api.post('/auth/reset-password', { email, otp, newPassword });
+  const response = await api.post('/auth/verify-reset-otp', { email, otp, newPassword });
   return response.data;
 };
 
