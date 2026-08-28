@@ -15,9 +15,9 @@ import { cacheMiddleware } from '../middleware/cache.middleware.js';
 const router = express.Router();
 
 // Public routes
-router.get('/', cacheMiddleware(600), getAllCategories);
-router.get('/:id', cacheMiddleware(600), getCategoryById);
-router.get('/:id/projects', cacheMiddleware(300), getProjectsByCategory);
+router.get('/', cacheMiddleware('categories', 600), getAllCategories);
+router.get('/:id', cacheMiddleware('category', 600), getCategoryById);
+router.get('/:id/projects', cacheMiddleware('category-projects', 300), getProjectsByCategory);
 
 // Admin only routes
 router.post('/', protect, isAdmin, createCategory);

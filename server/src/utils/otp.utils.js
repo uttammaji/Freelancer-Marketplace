@@ -74,19 +74,32 @@ export const verifyOTP = async (email, otp, purpose) => {
 };
 
 // Rate limit OTP requests
+
 export const checkOTPRateLimit = async (email, purpose) => {
   const key = `otp:ratelimit:${purpose}:${email}`;
+  
+  // Get current count
   const count = await redis.get(key);
   
+  // Check if rate limited
   if (count && parseInt(count) >= 3) {
-    throw new AppError('Too many OTP requests. Try again in 15 minutes', 429);
+    const ttl = await redis.ttl(key);
+    throw new AppError(`Too many OTP requests. Try again in ${Math.ceil(ttl / 60)} minutes`, 429);
   }
   
-  const ttl = await redis.ttl(key);
-  if (ttl === -1) {
-    await redis.set(key, 0, 'EX', 900); // 15 minutes
+  // Increment or set with TTL
+  if (!count) {
+    // First request
+    await redis.set(key, 1, 'EX', 900); // 15 minutes
+  } else {
+    // Subsequent requests
+    await redis.incr(key);
+    // Ensure TTL is set (in case it was lost)
+    const ttl = await redis.ttl(key);
+    if (ttl === -1) {
+      await redis.expire(key, 900); // Reset to 15 minutes
+    }
   }
-  await redis.incr(key);
   
   return true;
 };

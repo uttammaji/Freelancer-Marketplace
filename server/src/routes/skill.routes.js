@@ -15,9 +15,9 @@ import { cacheMiddleware } from '../middleware/cache.middleware.js';
 const router = express.Router();
 
 // Public routes
-router.get('/', cacheMiddleware(600), getAllSkills);
-router.get('/popular', cacheMiddleware(600), getPopularSkills);
-router.get('/:id', cacheMiddleware(600), getSkillById);
+router.get('/', cacheMiddleware('skills', 600), getAllSkills);
+router.get('/popular', cacheMiddleware('popular-skills', 600), getPopularSkills);
+router.get('/:id', cacheMiddleware('skill', 600), getSkillById);
 
 // Admin only routes
 router.post('/', protect, isAdmin, createSkill);

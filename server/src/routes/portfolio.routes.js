@@ -16,9 +16,9 @@ import { cacheMiddleware } from '../middleware/cache.middleware.js';
 const router = express.Router();
 
 // Public routes
-router.get('/featured', cacheMiddleware(300), getFeaturedPortfolio);
-router.get('/user/:userId', cacheMiddleware(300), getUserPortfolio);
-router.get('/:id', cacheMiddleware(300), getPortfolioById);
+router.get('/featured', cacheMiddleware('featured-portfolio', 300), getFeaturedPortfolio);
+router.get('/user/:userId', cacheMiddleware('user-portfolio', 300), getUserPortfolio);
+router.get('/:id', cacheMiddleware('portfolio', 300), getPortfolioById);
 
 // Freelancer only routes
 router.post('/', protect, isFreelancer, addPortfolioItem);

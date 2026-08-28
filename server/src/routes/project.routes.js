@@ -16,10 +16,10 @@ import { cacheMiddleware } from '../middleware/cache.middleware.js';
 
 const router = express.Router();
 
-// Public routes
-router.get('/', cacheMiddleware(300), getAllProjects);
-router.get('/:id', cacheMiddleware(300), getProjectById);
-router.get('/:id/similar', cacheMiddleware(300), getSimilarProjects);
+// Public routes WITH caching
+router.get('/', cacheMiddleware('projects', 300), getAllProjects);
+router.get('/:id', cacheMiddleware('project', 300), getProjectById);
+router.get('/:id/similar', cacheMiddleware('similar-projects', 300), getSimilarProjects);
 
 // Private routes (any logged-in user)
 router.get('/my/projects', protect, isClient, getMyProjects);

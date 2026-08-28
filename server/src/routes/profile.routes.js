@@ -15,8 +15,8 @@ import { cacheMiddleware } from '../middleware/cache.middleware.js';
 const router = express.Router();
 
 // Public routes
-router.get('/freelancers', cacheMiddleware(300), getAllFreelancers);
-router.get('/user/:userId', cacheMiddleware(300), getProfileByUserId);
+router.get('/freelancers', cacheMiddleware('freelancers', 300), getAllFreelancers);
+router.get('/user/:userId', cacheMiddleware('freelancer-profile', 300), getProfileByUserId);
 
 // Private routes (any logged-in user)
 router.get('/me', protect, getMyProfile);

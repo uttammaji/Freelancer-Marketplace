@@ -15,9 +15,9 @@ import { cacheMiddleware } from '../middleware/cache.middleware.js';
 const router = express.Router();
 
 // Public routes
-router.get('/user/:userId', cacheMiddleware(300), getUserReviews);
-router.get('/summary/:userId', cacheMiddleware(300), getReviewSummary);
-router.get('/:id', cacheMiddleware(300), getReviewById);
+router.get('/user/:userId', cacheMiddleware('user-reviews', 300), getUserReviews);
+router.get('/summary/:userId', cacheMiddleware('review-summary', 300), getReviewSummary);
+router.get('/:id', cacheMiddleware('review', 300), getReviewById);
 
 // Private routes
 router.post('/', protect, createReview);
