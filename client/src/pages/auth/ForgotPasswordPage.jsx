@@ -1,29 +1,121 @@
+// client/src/pages/auth/ForgotPasswordPage.jsx
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { Input } from '../../components/common/Input';
 import { Button } from '../../components/common/Button';
-import { Briefcase, Mail, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { Briefcase, Mail, Lock, ShieldCheck, ArrowRight } from 'lucide-react';
 
 export function ForgotPasswordPage() {
+  const { forgotPassword, resetPassword, resendResetOTP } = useAuth();
   const toast = useToast();
+  const navigate = useNavigate();
+
+  // Step 1: Email
   const [email, setEmail] = useState('');
-  const [isSent, setIsSent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  // Step 2: OTP
+  const [showOTP, setShowOTP] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
+
+  // Step 3: New Password
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
+
+  // Timer for resend OTP
+  React.useEffect(() => {
+    if (resendTimer > 0) {
+      const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendTimer]);
+
+  // Step 1: Send OTP
+  const handleSendOTP = async (e) => {
     e.preventDefault();
+
     if (!email) {
-      toast.warning('Email Required', 'Please enter your account email address.');
+      toast.warning('Email Required', 'Please enter your email address.');
       return;
     }
 
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsSent(true);
-      toast.success('Reset Link Sent', `Password reset instructions sent to ${email}`);
-    }, 600);
+    const result = await forgotPassword(email);
+    setIsLoading(false);
+
+    if (result.success) {
+      toast.success('OTP Sent', 'Check your email for reset code.');
+      setShowOTP(true);
+      setResendTimer(60);
+    } else {
+      toast.error('Request Failed', result.error);
+    }
+  };
+
+  // Step 2: Verify OTP
+  const handleVerifyOTP = async (e) => {
+    e.preventDefault();
+
+    if (!otp || otp.length !== 6) {
+      toast.warning('Invalid OTP', 'Please enter the 6-digit OTP.');
+      return;
+    }
+
+    // Just verify OTP format, don't reset yet
+    // Actual verification happens in Step 3 with new password
+    setShowNewPassword(true);
+  };
+
+  // Step 3: Reset Password
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+
+    if (!newPassword || !confirmPassword) {
+      toast.warning('Password Required', 'Please enter your new password.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error('Password Mismatch', 'Passwords do not match.');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast.warning('Weak Password', 'Password must be at least 6 characters.');
+      return;
+    }
+
+    setIsResetting(true);
+    const result = await resetPassword(email, otp, newPassword);
+    setIsResetting(false);
+
+    if (result.success) {
+      toast.success('Password Reset', 'Your password has been updated. Please login.');
+      navigate('/login');
+    } else {
+      toast.error('Reset Failed', result.error);
+    }
+  };
+
+  // Resend OTP
+  const handleResendOTP = async () => {
+    if (resendTimer > 0) return;
+
+    try {
+      const result = await resendResetOTP(email);
+      if (result.success) {
+        toast.success('OTP Resent', 'Check your email for new OTP.');
+        setResendTimer(60);
+      }
+    } catch (error) {
+      toast.error('Resend Failed', error.response?.data?.message || 'Try again later.');
+    }
   };
 
   return (
@@ -36,29 +128,42 @@ export function ForgotPasswordPage() {
               <Briefcase className="w-5 h-5 stroke-[2.2]" />
             </div>
           </Link>
-          <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-            Reset Password
-          </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Enter your email and we'll send you a password recovery link
-          </p>
+
+          {!showOTP && !showNewPassword ? (
+            <>
+              <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                Forgot Password
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Enter your email to receive a reset OTP
+              </p>
+            </>
+          ) : showOTP && !showNewPassword ? (
+            <>
+              <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                Enter OTP
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Enter the 6-digit code sent to {email}
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                Set New Password
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Create your new password
+              </p>
+            </>
+          )}
         </div>
 
-        {isSent ? (
-          <div className="p-6 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border border-emerald-200/80 dark:border-emerald-800/80 text-center space-y-3">
-            <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-600 dark:text-emerald-400" />
-            <h4 className="text-sm font-bold text-slate-900 dark:text-white">Check Your Inbox</h4>
-            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-              We've dispatched a secure password reset link to <strong>{email}</strong>.
-            </p>
-            <Button variant="outline" size="sm" onClick={() => setIsSent(false)} className="mt-2">
-              Send to another email
-            </Button>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Step 1: Email Form */}
+        {!showOTP && !showNewPassword && (
+          <form onSubmit={handleSendOTP} className="space-y-4">
             <Input
-              label="Account Email"
+              label="Email Address"
               type="email"
               placeholder="you@company.com"
               value={email}
@@ -68,20 +173,101 @@ export function ForgotPasswordPage() {
             />
 
             <Button type="submit" variant="primary" size="lg" className="w-full font-bold" isLoading={isLoading}>
-              Send Reset Link
+              Send OTP
+              <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           </form>
         )}
 
-        <div className="text-center pt-2">
-          <Link
-            to="/login"
-            className="inline-flex items-center gap-1 text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Back to Sign In</span>
+        {/* Step 2: OTP Form */}
+        {showOTP && !showNewPassword && (
+          <form onSubmit={handleVerifyOTP} className="space-y-4">
+            <div className="flex justify-center">
+              <ShieldCheck className="w-16 h-16 text-primary-600 dark:text-primary-400" />
+            </div>
+
+            <Input
+              label="Enter OTP"
+              type="text"
+              placeholder="123456"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
+              maxLength={6}
+              required
+            />
+
+            <Button type="submit" variant="primary" size="lg" className="w-full font-bold" isLoading={isVerifying}>
+              Verify OTP
+            </Button>
+
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={handleResendOTP}
+                disabled={resendTimer > 0}
+                className="text-xs text-slate-500 dark:text-slate-400 hover:text-primary-600 disabled:opacity-50"
+              >
+                {resendTimer > 0 ? `Resend OTP in ${resendTimer}s` : 'Resend OTP'}
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowOTP(false)}
+              className="w-full text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700"
+            >
+              ← Back
+            </button>
+          </form>
+        )}
+
+        {/* Step 3: New Password Form */}
+        {showNewPassword && (
+          <form onSubmit={handleResetPassword} className="space-y-4">
+            <Input
+              label="New Password"
+              type="password"
+              placeholder="••••••••"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              icon={Lock}
+              required
+            />
+
+            <Input
+              label="Confirm New Password"
+              type="password"
+              placeholder="••••••••"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              icon={Lock}
+              required
+            />
+
+            <Button type="submit" variant="primary" size="lg" className="w-full font-bold" isLoading={isResetting}>
+              Reset Password
+            </Button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowNewPassword(false);
+                setShowOTP(false);
+              }}
+              className="w-full text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700"
+            >
+              ← Back
+            </button>
+          </form>
+        )}
+
+        {/* Footer */}
+        <p className="text-center text-xs text-slate-500 dark:text-slate-400">
+          Remember your password?{' '}
+          <Link to="/login" className="text-primary-600 dark:text-primary-400 font-bold hover:underline">
+            Back to login
           </Link>
-        </div>
+        </p>
       </div>
     </div>
   );

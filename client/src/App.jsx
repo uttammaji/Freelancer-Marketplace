@@ -1,8 +1,9 @@
+// client/src/App.jsx
 import React, { useState } from 'react';
-import { BrowserRouter, Routes, Route, Outlet, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Outlet, useLocation, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { ToastProvider } from './context/ToastContext';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { MarketplaceProvider } from './context/MarketplaceContext';
 
 // Layout Components
@@ -71,7 +72,87 @@ function ScrollToTop() {
   return null;
 }
 
-// Public Layout Wrapper with Navbar, Footer & PersonaSwitcher
+// ============ ROUTE GUARDS ============
+
+// Protected Route - Requires authentication
+function ProtectedRoute({ children }) {
+  const { isAuthenticated, isLoading } = useAuth();
+  
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-sm text-slate-500 dark:text-slate-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  return children;
+}
+
+// Role-based route - Requires specific role
+function RoleRoute({ children, allowedRoles }) {
+  const { isAuthenticated, isLoading, role } = useAuth();
+  
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-sm text-slate-500 dark:text-slate-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  if (!allowedRoles.includes(role)) {
+    // Redirect to their own dashboard
+    if (role === 'client') return <Navigate to="/dashboard/client" replace />;
+    if (role === 'freelancer') return <Navigate to="/dashboard/freelancer" replace />;
+    if (role === 'admin') return <Navigate to="/admin" replace />;
+    return <Navigate to="/" replace />;
+  }
+  
+  return children;
+}
+
+// Public only route - Redirects if already logged in
+function PublicOnlyRoute({ children }) {
+  const { isAuthenticated, isLoading, role } = useAuth();
+  
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-sm text-slate-500 dark:text-slate-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (isAuthenticated) {
+    if (role === 'client') return <Navigate to="/dashboard/client" replace />;
+    if (role === 'freelancer') return <Navigate to="/dashboard/freelancer" replace />;
+    if (role === 'admin') return <Navigate to="/admin" replace />;
+  }
+  
+  return children;
+}
+
+// ============ LAYOUT WRAPPERS ============
+
+// Public Layout Wrapper
 function PublicLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -118,6 +199,8 @@ function AdminLayoutWrapper() {
   );
 }
 
+// ============ MAIN APP ============
+
 export function App() {
   return (
     <ThemeProvider>
@@ -137,21 +220,45 @@ export function App() {
                   <Route path="/categories" element={<CategoriesPage />} />
                   <Route path="/how-it-works" element={<HowItWorksPage />} />
 
-                  {/* Auth */}
-                  <Route path="/login" element={<LoginPage />} />
-                  <Route path="/register" element={<RegisterPage />} />
-                  <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                  {/* Auth - Public only (redirect if logged in) */}
+                  <Route path="/login" element={
+                    <PublicOnlyRoute>
+                      <LoginPage />
+                    </PublicOnlyRoute>
+                  } />
+                  <Route path="/register" element={
+                    <PublicOnlyRoute>
+                      <RegisterPage />
+                    </PublicOnlyRoute>
+                  } />
+                  <Route path="/forgot-password" element={
+                    <PublicOnlyRoute>
+                      <ForgotPasswordPage />
+                    </PublicOnlyRoute>
+                  } />
 
-                  {/* Shared Comms */}
-                  <Route path="/messages" element={<MessagesPage />} />
-                  <Route path="/notifications" element={<NotificationsPage />} />
+                  {/* Shared Comms - Protected */}
+                  <Route path="/messages" element={
+                    <ProtectedRoute>
+                      <MessagesPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/notifications" element={
+                    <ProtectedRoute>
+                      <NotificationsPage />
+                    </ProtectedRoute>
+                  } />
 
                   {/* 404 */}
                   <Route path="*" element={<NotFoundPage />} />
                 </Route>
 
-                {/* 2. Client Dashboard */}
-                <Route path="/dashboard/client" element={<ClientLayoutWrapper />}>
+                {/* 2. Client Dashboard - Protected + Client only */}
+                <Route path="/dashboard/client" element={
+                  <RoleRoute allowedRoles={['client']}>
+                    <ClientLayoutWrapper />
+                  </RoleRoute>
+                }>
                   <Route index element={<ClientDashboard />} />
                   <Route path="projects" element={<MyProjectsPage />} />
                   <Route path="projects/new" element={<PostProjectPage />} />
@@ -163,8 +270,12 @@ export function App() {
                   <Route path="settings" element={<ClientSettingsPage />} />
                 </Route>
 
-                {/* 3. Freelancer Dashboard */}
-                <Route path="/dashboard/freelancer" element={<FreelancerLayoutWrapper />}>
+                {/* 3. Freelancer Dashboard - Protected + Freelancer only */}
+                <Route path="/dashboard/freelancer" element={
+                  <RoleRoute allowedRoles={['freelancer']}>
+                    <FreelancerLayoutWrapper />
+                  </RoleRoute>
+                }>
                   <Route index element={<FreelancerDashboard />} />
                   <Route path="proposals" element={<MyProposalsPage />} />
                   <Route path="contracts" element={<FreelancerContractsPage />} />
@@ -174,8 +285,12 @@ export function App() {
                   <Route path="settings" element={<FreelancerSettingsPage />} />
                 </Route>
 
-                {/* 4. Admin Management Suite */}
-                <Route path="/admin" element={<AdminLayoutWrapper />}>
+                {/* 4. Admin Management Suite - Protected + Admin only */}
+                <Route path="/admin" element={
+                  <RoleRoute allowedRoles={['admin']}>
+                    <AdminLayoutWrapper />
+                  </RoleRoute>
+                }>
                   <Route index element={<AdminDashboard />} />
                   <Route path="users" element={<ManageUsersPage />} />
                   <Route path="projects" element={<ManageProjectsPage />} />

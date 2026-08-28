@@ -1,3 +1,4 @@
+// client/src/components/layout/Navbar.jsx
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -14,20 +15,16 @@ import {
   Sun,
   Moon,
   Menu,
-  X,
-  Shield,
   PlusCircle,
   LayoutDashboard,
   Settings,
   LogOut,
   User,
-  CheckCircle,
-  FileCode,
-  DollarSign
+  Loader2
 } from 'lucide-react';
 
 export function Navbar({ onMobileMenuToggle }) {
-  const { currentUser, role, isAuthenticated, logout } = useAuth();
+  const { currentUser, role, isAuthenticated, isLoading, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const { notifications, conversations } = useMarketplace();
   const navigate = useNavigate();
@@ -36,6 +33,7 @@ export function Navbar({ onMobileMenuToggle }) {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const unreadNotifs = notifications.filter(n => !n.isRead).length;
   const unreadMessages = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
@@ -44,7 +42,16 @@ export function Navbar({ onMobileMenuToggle }) {
     e.preventDefault();
     if (searchQuery.trim()) {
       navigate(`/projects?search=${encodeURIComponent(searchQuery.trim())}`);
+      setSearchQuery('');
     }
+  };
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    setIsProfileMenuOpen(false);
+    await logout();
+    setIsLoggingOut(false);
+    navigate('/login');
   };
 
   const getDashboardPath = () => {
@@ -128,7 +135,12 @@ export function Navbar({ onMobileMenuToggle }) {
               {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
             </button>
 
-            {isAuthenticated ? (
+            {isLoading ? (
+              /* Loading state */
+              <div className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+              </div>
+            ) : isAuthenticated ? (
               <>
                 {/* Messages icon */}
                 <Link
@@ -210,6 +222,14 @@ export function Navbar({ onMobileMenuToggle }) {
                   </Link>
                 )}
 
+                {role === 'admin' && (
+                  <Link to="/admin" className="hidden sm:block">
+                    <Button variant="subtle" size="sm">
+                      Admin Panel
+                    </Button>
+                  </Link>
+                )}
+
                 {/* Profile Dropdown */}
                 <div className="relative">
                   <button
@@ -253,9 +273,9 @@ export function Navbar({ onMobileMenuToggle }) {
                           <span>Dashboard</span>
                         </Link>
 
-                        {role === 'freelancer' && (
+                        {role === 'freelancer' && currentUser?.id && (
                           <Link
-                            to="/freelancers/fl-1"
+                            to={`/freelancers/${currentUser.id}`}
                             onClick={() => setIsProfileMenuOpen(false)}
                             className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                           >
@@ -264,25 +284,28 @@ export function Navbar({ onMobileMenuToggle }) {
                           </Link>
                         )}
 
-                        <Link
-                          to={`/dashboard/${role}/settings`}
-                          onClick={() => setIsProfileMenuOpen(false)}
-                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                        >
-                          <Settings className="w-4 h-4 text-slate-400" />
-                          <span>Settings</span>
-                        </Link>
+                        {role !== 'admin' && (
+                          <Link
+                            to={`/dashboard/${role}/settings`}
+                            onClick={() => setIsProfileMenuOpen(false)}
+                            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                          >
+                            <Settings className="w-4 h-4 text-slate-400" />
+                            <span>Settings</span>
+                          </Link>
+                        )}
 
                         <button
-                          onClick={() => {
-                            logout();
-                            setIsProfileMenuOpen(false);
-                            navigate('/login');
-                          }}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors text-left"
+                          onClick={handleLogout}
+                          disabled={isLoggingOut}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors text-left disabled:opacity-50"
                         >
-                          <LogOut className="w-4 h-4" />
-                          <span>Sign Out</span>
+                          {isLoggingOut ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <LogOut className="w-4 h-4" />
+                          )}
+                          <span>{isLoggingOut ? 'Signing Out...' : 'Sign Out'}</span>
                         </button>
                       </div>
                     </div>
