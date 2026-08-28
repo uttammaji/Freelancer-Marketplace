@@ -3,84 +3,60 @@ import mongoose, { Schema } from 'mongoose';
 
 // User Schema Definition
 const userSchema = new Schema({
-    name: {
-        type: String,
-        required: true,       
-        trim: true             
-    },
     // Username
     username: {
         type: String,
         required: true,
-        unique: true,        
-        lowercase: true,     
-        trim: true,          
-        index: true          
+        unique: true,
+        lowercase: true,
+        trim: true,
+        index: true
     },
-    // Email 
     email: {
         type: String,
         required: true,
-        unique: true,        
-        lowercase: true,     
-        trim: true,         
+        unique: true,
+        lowecase: true,
+        trim: true,
     },
-    // Password 
     password: {
         type: String,
         required: true,
-        // select: false 
+
     },
-    // Role 
     role: {
         type: String,
         required: true,
-        enum: ["client", "freelancer", "admin"], 
-        default: "client"    
+        enum: ["client", "freelancer", "admin"],
     },
-    // Avatar 
     avatar: {
         type: String,
-        // required: true,  
-        default: ""          
+        required: true,
+
     },
-    // Phone
     phone: {
         type: String,
-        // required: true,    
-        default: ""
+        required: true,
     },
-    // Email verification status
     isEmailVerified: {
         type: Boolean,
-        default: false        
     },
-    // Phone verification status
     isPhoneVerified: {
         type: Boolean,
-        default: false        
     },
-    // Block status - admin can block users
     isBlocked: {
         type: Boolean,
-        default: false        
     },
-    // Last login timestamp
-    lastLogin: {              
+    lastlogin: {
         type: Date,
     },
-    // Timestamps for record tracking
     createdAt: {
         type: Date,
-        default: Date.now     
     },
     updatedAt: {
         type: Date,
-        default: Date.now    
     }
-}, {
-    timestamps: true          
-});
+})
 
-// Export User model
-export const User = mongoose.model("User", userSchema); 
+
+export const User = mongoose.model("User", userSchema)
