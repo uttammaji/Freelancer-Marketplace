@@ -1,6 +1,7 @@
 // server/src/controllers/portfolio.controller.js
 import { Portfolio } from '../models/portfolio.model.js';
 import { AppError, asyncHandler } from '../middleware/error.middleware.js';
+import { deleteCacheByPattern } from '../utils/cache.utils.js';
 
 // @desc    Add portfolio item
 // @route   POST /api/portfolio
@@ -30,6 +31,7 @@ export const addPortfolioItem = asyncHandler(async (req, res, next) => {
     images
   });
 
+  await deleteCacheByPattern('portfolios:*');
   res.status(201).json({
     success: true,
     message: 'Portfolio item added successfully',
@@ -43,6 +45,7 @@ export const addPortfolioItem = asyncHandler(async (req, res, next) => {
 export const getMyPortfolio = asyncHandler(async (req, res, next) => {
   const portfolio = await Portfolio.find({ userId: req.user.id })
     .sort({ createdAt: -1 });
+
 
   res.status(200).json({
     success: true,
@@ -58,6 +61,7 @@ export const getUserPortfolio = asyncHandler(async (req, res, next) => {
   const portfolio = await Portfolio.find({ userId: req.params.userId })
     .sort({ createdAt: -1 });
 
+  
   res.status(200).json({
     success: true,
     count: portfolio.length,
@@ -119,6 +123,8 @@ export const updatePortfolioItem = asyncHandler(async (req, res, next) => {
     { new: true, runValidators: true }
   );
 
+  await deleteCacheByPattern('portfolios:*');
+
   res.status(200).json({
     success: true,
     message: 'Portfolio item updated successfully',
@@ -142,7 +148,7 @@ export const deletePortfolioItem = asyncHandler(async (req, res, next) => {
   }
 
   await Portfolio.findByIdAndDelete(req.params.id);
-
+  await deleteCacheByPattern('portfolios:*');
   res.status(200).json({
     success: true,
     message: 'Portfolio item deleted successfully'
@@ -158,6 +164,7 @@ export const getFeaturedPortfolio = asyncHandler(async (req, res, next) => {
     .limit(6)
     .sort({ createdAt: -1 });
 
+  
   res.status(200).json({
     success: true,
     count: portfolio.length,

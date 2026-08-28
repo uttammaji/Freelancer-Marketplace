@@ -13,6 +13,7 @@ export const protect = async (req, res, next) => {
       token = req.headers.authorization.split(' ')[1];
     }
 
+    // No token provided
     if (!token) {
       return res.status(401).json({
         success: false,
@@ -26,6 +27,7 @@ export const protect = async (req, res, next) => {
     // Get user from database
     const user = await User.findById(decoded.id).select('-password');
     
+    // User not found in database
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -33,10 +35,43 @@ export const protect = async (req, res, next) => {
       });
     }
 
+    // Check if user is blocked
+    if (user.isBlocked) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been blocked. Please contact support'
+      });
+    }
+
+    // Check if email verified
+    if (!user.isEmailVerified) {
+      return res.status(403).json({
+        success: false,
+        message: 'Please verify your email first'
+      });
+    }
+
+    // Attach user to request
     req.user = user;
     next();
   } catch (error) {
-    console.error('Auth middleware error:', error);
+    console.error('Auth middleware error:', error.message);
+    
+    // Handle specific JWT errors
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token'
+      });
+    }
+    
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Token expired, please login again'
+      });
+    }
+    
     return res.status(401).json({
       success: false,
       message: 'Not authorized, token failed'

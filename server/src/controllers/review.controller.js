@@ -3,6 +3,7 @@ import { Review } from '../models/review.model.js';
 import { Contract } from '../models/contract.model.js';
 import { Profile } from '../models/profile.model.js';
 import { AppError, asyncHandler } from '../middleware/error.middleware.js';
+import { deleteCacheByPattern } from '../utils/cache.utils.js';
 
 // @desc    Create a review
 // @route   POST /api/reviews
@@ -79,7 +80,8 @@ export const createReview = asyncHandler(async (req, res, next) => {
     profile.totalReviews = allReviews.length;
     await profile.save();
   }
-
+  await deleteCacheByPattern('profiles:*');
+   await deleteCacheByPattern('reviews:*'); 
   res.status(201).json({
     success: true,
     message: 'Review submitted successfully',
@@ -176,7 +178,8 @@ export const updateReview = asyncHandler(async (req, res, next) => {
     profile.rating = totalRating / allReviews.length;
     await profile.save();
   }
-
+  await deleteCacheByPattern('profiles:*');
+   await deleteCacheByPattern('reviews:*'); 
   res.status(200).json({
     success: true,
     message: 'Review updated successfully',
@@ -203,6 +206,8 @@ export const deleteReview = asyncHandler(async (req, res, next) => {
   }
 
   await Review.findByIdAndDelete(req.params.id);
+  await deleteCacheByPattern('profiles:*');
+   await deleteCacheByPattern('reviews:*'); 
 
   // Update profile rating
   const profile = await Profile.findOne({ userId: review.revieweeId });

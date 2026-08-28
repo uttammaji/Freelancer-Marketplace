@@ -1,6 +1,7 @@
 // server/src/controllers/skill.controller.js
 import { Skill } from '../models/skill.model.js';
 import { AppError, asyncHandler } from '../middleware/error.middleware.js';
+import { deleteCacheByPattern } from '../utils/cache.utils.js';
 
 // @desc    Create a new skill
 // @route   POST /api/skills
@@ -22,6 +23,7 @@ export const createSkill = asyncHandler(async (req, res, next) => {
     category
   });
 
+  await deleteCacheByPattern('skills:*');
   res.status(201).json({
     success: true,
     message: 'Skill created successfully',
@@ -95,6 +97,7 @@ export const updateSkill = asyncHandler(async (req, res, next) => {
     { new: true, runValidators: true }
   );
 
+  await deleteCacheByPattern('skills:*');
   res.status(200).json({
     success: true,
     message: 'Skill updated successfully',
@@ -113,7 +116,7 @@ export const deleteSkill = asyncHandler(async (req, res, next) => {
   }
 
   await Skill.findByIdAndDelete(req.params.id);
-
+  await deleteCacheByPattern('skills:*');
   res.status(200).json({
     success: true,
     message: 'Skill deleted successfully'

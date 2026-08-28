@@ -10,13 +10,14 @@ import {
   getReviewSummary
 } from '../controllers/review.controller.js';
 import { protect } from '../middleware/auth.middleware.js';
+import { cacheMiddleware } from '../middleware/cache.middleware.js';
 
 const router = express.Router();
 
 // Public routes
-router.get('/user/:userId', getUserReviews);
-router.get('/summary/:userId', getReviewSummary);
-router.get('/:id', getReviewById);
+router.get('/user/:userId', cacheMiddleware(300), getUserReviews);
+router.get('/summary/:userId', cacheMiddleware(300), getReviewSummary);
+router.get('/:id', cacheMiddleware(300), getReviewById);
 
 // Private routes
 router.post('/', protect, createReview);

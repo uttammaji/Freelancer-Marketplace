@@ -2,12 +2,13 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import mongoose from 'mongoose';
 
 const app = express();
 
 // CORS
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: process.env.CLIENT_URL,
   credentials: true
 }));
 
@@ -22,6 +23,55 @@ app.use(express.static("public"));
 // Serve uploaded files
 app.use('/uploads', express.static('uploads'));
 
+// ============ HEALTH CHECK ============
+
+// Basic health check
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Server is running',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+// Detailed health check (with DB and Redis status)
+app.get('/api/health', async (req, res) => {
+  try {
+    // Check MongoDB
+    const mongoStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+    
+    // Check Redis
+    let redisStatus = 'disconnected';
+    try {
+      const redis = (await import('./config/redis.config.js')).default;
+      const redisPing = await redis.ping();
+      redisStatus = redisPing === 'PONG' ? 'connected' : 'disconnected';
+    } catch (error) {
+      redisStatus = 'disconnected';
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'API is running',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      services: {
+        mongodb: mongoStatus,
+        redis: redisStatus
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Health check failed',
+      error: error.message
+    });
+  }
+});
+
+// ============ ROUTES ============
+
 // Import routes
 import authRoutes from './routes/auth.routes.js';
 import profileRoutes from './routes/profile.routes.js';
@@ -35,7 +85,6 @@ import portfolioRoutes from './routes/portfolio.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import messageRoutes from './routes/message.routes.js';
 
-
 // Use routes
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
@@ -48,6 +97,8 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/portfolios', portfolioRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/messages', messageRoutes);
+
+// ============ ERROR HANDLING ============
 
 // Import error handler
 import { errorHandler } from './middleware/error.middleware.js';

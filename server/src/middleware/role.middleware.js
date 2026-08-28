@@ -3,19 +3,22 @@
 // Generic role authorization middleware
 export const authorize = (...roles) => {
   return (req, res, next) => {
+    // Check if user exists (should be called after protect middleware)
     if (!req.user) {
       return res.status(401).json({
         success: false,
-        message: 'Not authorized, please login'
+        message: 'Not authorized, please login first'
       });
     }
 
+    // Check if user role is allowed
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: `Role '${req.user.role}' is not authorized to access this route`
+        message: `Access denied. '${req.user.role}' role is not authorized to access this route`
       });
     }
+    
     next();
   };
 };

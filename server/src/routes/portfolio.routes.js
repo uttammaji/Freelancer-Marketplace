@@ -11,13 +11,14 @@ import {
 } from '../controllers/portfolio.controller.js';
 import { protect } from '../middleware/auth.middleware.js';
 import { isFreelancer } from '../middleware/role.middleware.js';
+import { cacheMiddleware } from '../middleware/cache.middleware.js';
 
 const router = express.Router();
 
 // Public routes
-router.get('/featured', getFeaturedPortfolio);
-router.get('/user/:userId', getUserPortfolio);
-router.get('/:id', getPortfolioById);
+router.get('/featured', cacheMiddleware(300), getFeaturedPortfolio);
+router.get('/user/:userId', cacheMiddleware(300), getUserPortfolio);
+router.get('/:id', cacheMiddleware(300), getPortfolioById);
 
 // Freelancer only routes
 router.post('/', protect, isFreelancer, addPortfolioItem);

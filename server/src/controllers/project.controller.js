@@ -2,6 +2,7 @@
 import { Project } from '../models/project.model.js';
 import { Proposal } from '../models/proposal.model.js';
 import { AppError, asyncHandler } from '../middleware/error.middleware.js';
+import { deleteCacheByPattern } from '../utils/cache.utils.js';
 
 // @desc    Create a new project
 // @route   POST /api/projects
@@ -42,13 +43,14 @@ export const createProject = asyncHandler(async (req, res, next) => {
     deadline,
     experienceLevel
   });
-
+await deleteCacheByPattern('projects:*');
   res.status(201).json({
     success: true,
     message: 'Project created successfully',
     project
   });
 });
+
 
 // @desc    Get all projects with filters
 // @route   GET /api/projects
@@ -128,6 +130,7 @@ export const getAllProjects = asyncHandler(async (req, res, next) => {
   });
 });
 
+
 // @desc    Get single project by ID
 // @route   GET /api/projects/:id
 // @access  Public
@@ -143,6 +146,7 @@ export const getProjectById = asyncHandler(async (req, res, next) => {
   // Increment view count
   project.views += 1;
   await project.save();
+  
 
   res.status(200).json({
     success: true,
@@ -212,6 +216,7 @@ export const updateProject = asyncHandler(async (req, res, next) => {
     },
     { new: true, runValidators: true }
   );
+await deleteCacheByPattern('projects:*');
 
   res.status(200).json({
     success: true,
@@ -219,6 +224,7 @@ export const updateProject = asyncHandler(async (req, res, next) => {
     project
   });
 });
+
 
 // @desc    Delete project
 // @route   DELETE /api/projects/:id
@@ -244,12 +250,14 @@ export const deleteProject = asyncHandler(async (req, res, next) => {
 
   // Also delete all proposals for this project
   await Proposal.deleteMany({ projectId: req.params.id });
+  await deleteCacheByPattern('projects:*');
 
   res.status(200).json({
     success: true,
     message: 'Project deleted successfully'
   });
 });
+
 
 // @desc    Update project status
 // @route   PATCH /api/projects/:id/status
@@ -275,6 +283,7 @@ export const updateProjectStatus = asyncHandler(async (req, res, next) => {
 
   project.status = status;
   await project.save();
+  await deleteCacheByPattern('projects:*');
 
   res.status(200).json({
     success: true,

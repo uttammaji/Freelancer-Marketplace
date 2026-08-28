@@ -3,6 +3,7 @@ import { Contract } from '../models/contract.model.js';
 import { Project } from '../models/project.model.js';
 import { Proposal } from '../models/proposal.model.js';
 import { AppError, asyncHandler } from '../middleware/error.middleware.js';
+import { deleteCacheByPattern } from '../utils/cache.utils.js';
 
 // @desc    Create a contract (when client hires freelancer)
 // @route   POST /api/contracts
@@ -57,7 +58,7 @@ export const createContract = asyncHandler(async (req, res, next) => {
   // Update proposal status
   proposal.status = 'accepted';
   await proposal.save();
-
+  await deleteCacheByPattern('contracts:*');
   res.status(201).json({
     success: true,
     message: 'Contract created successfully',
@@ -101,6 +102,7 @@ export const getClientContracts = asyncHandler(async (req, res, next) => {
     .populate('freelancerId', 'name email avatar')
     .sort({ createdAt: -1 });
 
+  
   res.status(200).json({
     success: true,
     count: contracts.length,
@@ -117,6 +119,7 @@ export const getFreelancerContracts = asyncHandler(async (req, res, next) => {
     .populate('clientId', 'name email avatar')
     .sort({ createdAt: -1 });
 
+  
   res.status(200).json({
     success: true,
     count: contracts.length,
@@ -154,6 +157,7 @@ export const updateContractStatus = asyncHandler(async (req, res, next) => {
   }
 
   await contract.save();
+  await deleteCacheByPattern('contracts:*');
 
   // Update project status
   const project = await Project.findById(contract.projectId);
@@ -161,6 +165,8 @@ export const updateContractStatus = asyncHandler(async (req, res, next) => {
     project.status = status === 'completed' ? 'completed' : 'cancelled';
     await project.save();
   }
+  await deleteCacheByPattern('projects:*');
+
 
   res.status(200).json({
     success: true,
@@ -192,6 +198,8 @@ export const updateContractProgress = asyncHandler(async (req, res, next) => {
 
   contract.progress = progress;
   await contract.save();
+  await deleteCacheByPattern('contracts:*');
+  
 
   res.status(200).json({
     success: true,

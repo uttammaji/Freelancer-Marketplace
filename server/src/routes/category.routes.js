@@ -10,13 +10,14 @@ import {
 } from '../controllers/category.controller.js';
 import { protect } from '../middleware/auth.middleware.js';
 import { isAdmin } from '../middleware/role.middleware.js';
+import { cacheMiddleware } from '../middleware/cache.middleware.js';
 
 const router = express.Router();
 
 // Public routes
-router.get('/', getAllCategories);
-router.get('/:id', getCategoryById);
-router.get('/:id/projects', getProjectsByCategory);
+router.get('/', cacheMiddleware(600), getAllCategories);
+router.get('/:id', cacheMiddleware(600), getCategoryById);
+router.get('/:id/projects', cacheMiddleware(300), getProjectsByCategory);
 
 // Admin only routes
 router.post('/', protect, isAdmin, createCategory);

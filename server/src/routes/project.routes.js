@@ -12,13 +12,14 @@ import {
 } from '../controllers/project.controller.js';
 import { protect } from '../middleware/auth.middleware.js';
 import { isClient } from '../middleware/role.middleware.js';
+import { cacheMiddleware } from '../middleware/cache.middleware.js';
 
 const router = express.Router();
 
 // Public routes
-router.get('/', getAllProjects);
-router.get('/:id', getProjectById);
-router.get('/:id/similar', getSimilarProjects);
+router.get('/', cacheMiddleware(300), getAllProjects);
+router.get('/:id', cacheMiddleware(300), getProjectById);
+router.get('/:id/similar', cacheMiddleware(300), getSimilarProjects);
 
 // Private routes (any logged-in user)
 router.get('/my/projects', protect, isClient, getMyProjects);

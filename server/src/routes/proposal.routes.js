@@ -14,6 +14,7 @@ import {
 import { protect } from '../middleware/auth.middleware.js';
 import { isClient, isFreelancer } from '../middleware/role.middleware.js';
 
+
 const router = express.Router();
 
 // Freelancer routes

@@ -2,6 +2,7 @@
 import { Profile } from "../models/profile.model.js";
 import { User } from '../models/user.models.js';
 import { AppError, asyncHandler } from '../middleware/error.middleware.js';
+import { deleteCacheByPattern } from '../utils/cache.utils.js';
 
 // @desc    Create or update freelancer profile
 // @route   POST /api/profile
@@ -39,7 +40,8 @@ export const createOrUpdateProfile = asyncHandler(async (req, res, next) => {
       },
       { new: true, runValidators: true }
     );
-
+   await deleteCacheByPattern('freelancers:*');
+  await deleteCacheByPattern('freelancer-profile:*');
     return res.status(200).json({
       success: true,
       message: 'Profile updated successfully',
@@ -60,6 +62,9 @@ export const createOrUpdateProfile = asyncHandler(async (req, res, next) => {
     education,
     certifications
   });
+
+  await deleteCacheByPattern('freelancers:*');
+  await deleteCacheByPattern('freelancer-profile:*');
 
   res.status(201).json({
     success: true,
@@ -169,6 +174,8 @@ export const deleteProfile = asyncHandler(async (req, res, next) => {
   if (!profile) {
     throw new AppError('Profile not found', 404);
   }
+  await deleteCacheByPattern('freelancers:*');
+  await deleteCacheByPattern('freelancer-profile:*');
 
   res.status(200).json({
     success: true,
@@ -195,7 +202,8 @@ export const updateAvailability = asyncHandler(async (req, res, next) => {
   if (!profile) {
     throw new AppError('Profile not found', 404);
   }
-
+await deleteCacheByPattern('freelancers:*');
+  await deleteCacheByPattern('freelancer-profile:*');
   res.status(200).json({
     success: true,
     message: 'Availability updated',

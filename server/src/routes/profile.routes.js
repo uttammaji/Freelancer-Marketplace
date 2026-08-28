@@ -10,12 +10,13 @@ import {
 } from '../controllers/profile.controller.js';
 import { protect } from '../middleware/auth.middleware.js';
 import { isFreelancer } from '../middleware/role.middleware.js';
+import { cacheMiddleware } from '../middleware/cache.middleware.js';
 
 const router = express.Router();
 
 // Public routes
-router.get('/freelancers', getAllFreelancers);
-router.get('/user/:userId', getProfileByUserId);
+router.get('/freelancers', cacheMiddleware(300), getAllFreelancers);
+router.get('/user/:userId', cacheMiddleware(300), getProfileByUserId);
 
 // Private routes (any logged-in user)
 router.get('/me', protect, getMyProfile);

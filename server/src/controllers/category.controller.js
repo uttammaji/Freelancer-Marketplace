@@ -2,6 +2,7 @@
 import { Category } from '../models/category.model.js';
 import { Skill } from '../models/skill.model.js';
 import { AppError, asyncHandler } from '../middleware/error.middleware.js';
+import { deleteCacheByPattern } from '../utils/cache.utils.js';
 
 // @desc    Create a new category
 // @route   POST /api/categories
@@ -20,6 +21,7 @@ export const createCategory = asyncHandler(async (req, res, next) => {
     description,
     icon
   });
+  await deleteCacheByPattern('categories:*');
 
   res.status(201).json({
     success: true,
@@ -80,7 +82,7 @@ export const updateCategory = asyncHandler(async (req, res, next) => {
     },
     { new: true, runValidators: true }
   );
-
+  await deleteCacheByPattern('categories:*');
   res.status(200).json({
     success: true,
     message: 'Category updated successfully',
@@ -99,6 +101,7 @@ export const deleteCategory = asyncHandler(async (req, res, next) => {
   }
 
   await Category.findByIdAndDelete(req.params.id);
+  await deleteCacheByPattern('categories:*');
 
   res.status(200).json({
     success: true,

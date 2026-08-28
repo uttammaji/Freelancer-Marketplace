@@ -180,4 +180,126 @@ export const projectNotificationTemplate = (user, project, type) => {
     </body>
     </html>
   `;
+
+  
+};
+
+
+// OTP Email Template
+export const otpEmailTemplate = (otp, purpose) => {
+  const purposeText = {
+    registration: 'complete your registration',
+    login: 'login to your account',
+    password_reset: 'reset your password'
+  };
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          max-width: 600px;
+          margin: 0 auto;
+          padding: 20px;
+          background: #f5f5f5;
+        }
+        .container {
+          background: white;
+          padding: 40px;
+          border-radius: 15px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header {
+          text-align: center;
+          color: #667eea;
+          font-size: 24px;
+          font-weight: bold;
+          margin-bottom: 30px;
+        }
+        .otp-box {
+          background: #667eea;
+          color: white;
+          font-size: 36px;
+          font-weight: bold;
+          letter-spacing: 10px;
+          text-align: center;
+          padding: 20px;
+          border-radius: 10px;
+          margin: 30px 0;
+        }
+        .info {
+          color: #666;
+          text-align: center;
+          margin-top: 20px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">Freelancer Marketplace</div>
+        <p>Hello,</p>
+        <p>Use the following OTP to ${purposeText[purpose] || 'complete your verification'}:</p>
+        <div class="otp-box">${otp}</div>
+        <p class="info">This OTP will expire in 5 minutes.</p>
+        <p class="info">If you didn't request this, please ignore this email.</p>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
+// Password Reset Success Template
+export const passwordResetSuccessTemplate = (user) => {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          line-height: 1.6;
+          color: #333;
+          max-width: 600px;
+          margin: 0 auto;
+          padding: 20px;
+        }
+        .header {
+          background: #28a745;
+          color: white;
+          padding: 30px;
+          text-align: center;
+          border-radius: 10px 10px 0 0;
+        }
+        .content {
+          padding: 30px;
+          background: #f9f9f9;
+          border: 1px solid #e0e0e0;
+          border-radius: 0 0 10px 10px;
+        }
+        .footer {
+          text-align: center;
+          margin-top: 20px;
+          color: #666;
+          font-size: 12px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Password Reset Successful</h1>
+      </div>
+      <div class="content">
+        <h2>Hi ${user.name},</h2>
+        <p>Your password has been successfully reset.</p>
+        <p>You can now login with your new password.</p>
+        <p>If you did not perform this action, please contact support immediately.</p>
+      </div>
+      <div class="footer">
+        <p>© 2024 Freelancer Marketplace. All rights reserved.</p>
+      </div>
+    </body>
+    </html>
+  `;
 };

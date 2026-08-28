@@ -2,6 +2,7 @@
 import { Proposal } from '../models/proposal.model.js';
 import { Project } from '../models/project.model.js';
 import { AppError, asyncHandler } from '../middleware/error.middleware.js';
+import { deleteCacheByPattern } from '../utils/cache.utils.js';
 
 // @desc    Submit a proposal for a project
 // @route   POST /api/proposals
@@ -54,6 +55,7 @@ export const submitProposal = asyncHandler(async (req, res, next) => {
   // Update project proposal count
   project.proposalCount += 1;
   await project.save();
+  await deleteCacheByPattern('projects:*');
 
   res.status(201).json({
     success: true,
@@ -162,6 +164,8 @@ export const updateProposal = asyncHandler(async (req, res, next) => {
     { new: true, runValidators: true }
   );
 
+  await deleteCacheByPattern('projects:*');
+
   res.status(200).json({
     success: true,
     message: 'Proposal updated successfully',
@@ -192,7 +196,8 @@ export const withdrawProposal = asyncHandler(async (req, res, next) => {
   // Update proposal status to withdrawn
   proposal.status = 'withdrawn';
   await proposal.save();
-
+  await deleteCacheByPattern('projects:*');
+  await deleteCacheByPattern('proposals:*');
   // Decrement project proposal count
   const project = await Project.findById(proposal.projectId);
   if (project) {
@@ -259,6 +264,7 @@ export const acceptProposal = asyncHandler(async (req, res, next) => {
   // Accept this proposal
   proposal.status = 'accepted';
   await proposal.save();
+  
 
   // Reject all other proposals for this project
   await Proposal.updateMany(
@@ -274,7 +280,8 @@ export const acceptProposal = asyncHandler(async (req, res, next) => {
   project.status = 'in_progress';
   project.hiredFreelancerId = proposal.freelancerId;
   await project.save();
-
+  await deleteCacheByPattern('projects:*');
+  
   res.status(200).json({
     success: true,
     message: 'Proposal accepted, freelancer hired',

@@ -10,13 +10,14 @@ import {
 } from '../controllers/skill.controller.js';
 import { protect } from '../middleware/auth.middleware.js';
 import { isAdmin } from '../middleware/role.middleware.js';
+import { cacheMiddleware } from '../middleware/cache.middleware.js';
 
 const router = express.Router();
 
 // Public routes
-router.get('/', getAllSkills);
-router.get('/popular', getPopularSkills);
-router.get('/:id', getSkillById);
+router.get('/', cacheMiddleware(600), getAllSkills);
+router.get('/popular', cacheMiddleware(600), getPopularSkills);
+router.get('/:id', cacheMiddleware(600), getSkillById);
 
 // Admin only routes
 router.post('/', protect, isAdmin, createSkill);
