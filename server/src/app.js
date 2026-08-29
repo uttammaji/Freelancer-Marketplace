@@ -84,6 +84,7 @@ import reviewRoutes from './routes/review.routes.js';
 import portfolioRoutes from './routes/portfolio.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import messageRoutes from './routes/message.routes.js';
+import uploadRoutes from './routes/upload.routes.js';
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -97,6 +98,7 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/portfolios', portfolioRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // ============ ERROR HANDLING ============
 
