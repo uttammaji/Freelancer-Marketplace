@@ -81,7 +81,7 @@ const profileSchema = new mongoose.Schema({
     },
 
     skills: [{
-        type: mongoose.Schema.Types.ObjectId,
+        type: String,
         ref: "Skill",
     }],
 

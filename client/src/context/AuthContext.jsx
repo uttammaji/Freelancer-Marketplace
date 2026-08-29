@@ -1,7 +1,9 @@
 // client/src/context/AuthContext.jsx
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import * as authService from '../services/auth.service';
 import * as profileService from '../services/profile.service';
+import * as uploadService from '../services/upload.service';
+import { compressImage, validateImage } from '../utils/imageCompression';
 
 const AuthContext = createContext();
 
@@ -10,8 +12,9 @@ export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [token, setToken] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [profile, setProfile] = useState(null);           //  Profile state
+  const [profile, setProfile] = useState(null);
   const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const [isAvatarUploading, setIsAvatarUploading] = useState(false);
 
   // ============ LOCAL STORAGE EFFECTS ============
   
@@ -53,7 +56,6 @@ export function AuthProvider({ children }) {
 
   // ============ AUTH FUNCTIONS ============
 
-  // Register - Step 1
   const register = async (userData) => {
     try {
       const response = await authService.registerUser(userData);
@@ -66,7 +68,6 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Verify Registration - Step 2
   const verifyRegistration = async (email, otp) => {
     try {
       const response = await authService.verifyRegistration(email, otp);
@@ -85,7 +86,6 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Login - Step 1
   const login = async (email, password) => {
     try {
       const response = await authService.loginUser(email, password);
@@ -98,7 +98,6 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Verify Login - Step 2
   const verifyLogin = async (email, otp) => {
     try {
       const response = await authService.verifyLoginOTP(email, otp);
@@ -117,7 +116,6 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Forgot Password
   const forgotPassword = async (email) => {
     try {
       const response = await authService.forgotPassword(email);
@@ -130,7 +128,6 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Reset Password
   const resetPassword = async (email, otp, newPassword) => {
     try {
       const response = await authService.resetPassword(email, otp, newPassword);
@@ -143,8 +140,7 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Logout
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await authService.logoutUser();
     } catch (error) {
@@ -152,22 +148,23 @@ export function AuthProvider({ children }) {
     } finally {
       setToken(null);
       setCurrentUser(null);
-      setProfile(null);  // Clear profile on logout
+      setProfile(null);
+      localStorage.removeItem('skillhire_token');
+      localStorage.removeItem('skillhire_user');
+      localStorage.removeItem('skillhire_profile');
     }
-  };
+  }, []);
 
-  // Update user profile (local state)
-  const updateProfile = (updates) => {
+  const updateProfile = useCallback((updates) => {
     setCurrentUser(prev => ({
       ...prev,
       ...updates
     }));
-  };
+  }, []);
 
   // ============ PROFILE FUNCTIONS ============
 
-  // Fetch profile from backend
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     setIsProfileLoading(true);
     try {
       const response = await profileService.getMyProfile();
@@ -184,10 +181,9 @@ export function AuthProvider({ children }) {
     } finally {
       setIsProfileLoading(false);
     }
-  };
+  }, []);
 
-  // Save profile to backend
-  const saveProfile = async (profileData) => {
+  const saveProfile = useCallback(async (profileData) => {
     try {
       const response = await profileService.saveProfile(profileData);
       if (response.success) {
@@ -200,26 +196,147 @@ export function AuthProvider({ children }) {
         error: error.response?.data?.message || 'Failed to save profile' 
       };
     }
-  };
+  }, []);
+
+  // ============ AVATAR FUNCTIONS ============
+
+  /**
+   * Upload and update avatar
+   * Flow: Validate → Compress → Upload to Cloudinary → Save to User model → Update state
+   */
+  const uploadAvatar = useCallback(async (file) => {
+    setIsAvatarUploading(true);
+    
+    try {
+      // 1. Validate
+      const validation = validateImage(file);
+      if (!validation.isValid) {
+        return { success: false, error: validation.error };
+      }
+
+      // 2. Compress
+      const compressedFile = await compressImage(file, {
+        maxSizeMB: 0.3,
+        maxWidthOrHeight: 400,
+        useWebWorker: true,
+        initialQuality: 0.85,
+      });
+
+      // 3. Upload to Cloudinary
+      const uploadResult = await uploadService.uploadImage(
+        compressedFile, 
+        'avatars', 
+        'avatar'
+      );
+
+      if (!uploadResult.success) {
+        return { success: false, error: 'Upload failed' };
+      }
+
+      const avatarUrl = uploadResult.image.url;
+      const avatarPublicId = uploadResult.image.publicId;
+
+      // 4. Save to USER model via auth service 
+      const updateResult = await authService.updateAvatar(avatarUrl, avatarPublicId);
+
+      if (updateResult.success && updateResult.user) {
+        // 5. Update state with response from backend
+        const updatedUser = {
+          ...currentUser,
+          avatar: updateResult.user.avatar,
+          avatarPublicId: updateResult.user.avatarPublicId,
+        };
+
+        setCurrentUser(updatedUser);
+
+        // 6. Update localStorage immediately
+        localStorage.setItem('skillhire_user', JSON.stringify(updatedUser));
+      }
+
+      return { 
+        success: true, 
+        avatarUrl,
+        data: uploadResult 
+      };
+    } catch (error) {
+      console.error('Avatar upload failed:', error);
+      return { 
+        success: false, 
+        error: error.message || 'Avatar upload failed' 
+      };
+    } finally {
+      setIsAvatarUploading(false);
+    }
+  }, [currentUser]);
+
+  /**
+   * Remove avatar
+   */
+  const removeAvatar = useCallback(async () => {
+    try {
+      // Delete from Cloudinary if publicId exists
+      if (currentUser?.avatarPublicId) {
+      try {
+        await uploadService.deleteUpload(currentUser.avatarPublicId);
+      } catch (deleteError) {
+        console.error('Cloudinary delete failed:', deleteError);
+        // Continue even if Cloudinary delete fails
+      }
+    }
+
+      // Update backend
+      const updateResult = await authService.updateAvatar('', null);
+
+      if (updateResult.success) {
+        const updatedUser = {
+          ...currentUser,
+          avatar: '',
+          avatarPublicId: null,
+        };
+        setCurrentUser(updatedUser);
+        localStorage.setItem('skillhire_user', JSON.stringify(updatedUser));
+      }
+
+      return { success: true };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error.message || 'Failed to remove avatar' 
+      };
+    }
+  }, [currentUser]);
+
+  // ============ CHANGE PASSWORD ============
+
+  const changePassword = useCallback(async (currentPassword, newPassword) => {
+    try {
+      const response = await authService.changePassword(currentPassword, newPassword);
+      return { success: true, data: response };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error.response?.data?.message || 'Failed to change password' 
+      };
+    }
+  }, []);
 
   // ============ RESEND OTP HELPERS ============
 
-  const resendRegistrationOTP = async (email) => {
+  const resendRegistrationOTP = useCallback(async (email) => {
     return authService.resendRegistrationOTP(email);
-  };
+  }, []);
 
-  const resendLoginOTP = async (email) => {
+  const resendLoginOTP = useCallback(async (email) => {
     return authService.resendLoginOTP(email);
-  };
+  }, []);
 
-  const resendResetOTP = async (email) => {
+  const resendResetOTP = useCallback(async (email) => {
     return authService.resendResetOTP(email);
-  };
+  }, []);
 
-  // ============ CONTEXT VALUE ============
+  // ============ MEMOIZED CONTEXT VALUE ============
 
-  const value = {
-    // User
+  const value = useMemo(() => ({
     currentUser,
     user: currentUser,
     token,
@@ -227,7 +344,6 @@ export function AuthProvider({ children }) {
     isAuthenticated: !!currentUser && !!token,
     isLoading,
     
-    // Auth functions
     register,
     verifyRegistration,
     login,
@@ -236,18 +352,38 @@ export function AuthProvider({ children }) {
     resetPassword,
     logout,
     updateProfile,
+    changePassword,
     
-    // OTP resend
     resendRegistrationOTP,
     resendLoginOTP,
     resendResetOTP,
     
-    // Profile
     profile,
     isProfileLoading,
     fetchProfile,
     saveProfile,
-  };
+    
+    uploadAvatar,
+    removeAvatar,
+    isAvatarUploading,
+  }), [
+    currentUser,
+    token,
+    isLoading,
+    profile,
+    isProfileLoading,
+    isAvatarUploading,
+    logout,
+    updateProfile,
+    changePassword,
+    fetchProfile,
+    saveProfile,
+    uploadAvatar,
+    removeAvatar,
+    resendRegistrationOTP,
+    resendLoginOTP,
+    resendResetOTP,
+  ]);
 
   return (
     <AuthContext.Provider value={value}>

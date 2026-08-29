@@ -7,7 +7,8 @@ import {
   logout, 
   refreshToken,
  sendResetOTP,
- verifyResetOTP
+ verifyResetOTP,
+ updateAvatar
 } from '../controllers/auth.controller.js';
 import {
   verifyRegistration,
@@ -42,6 +43,7 @@ router.post('/refresh-token', refreshToken);
 
 // ============ PROTECTED ROUTES ============
 router.get('/me', protect, getMe);
+router.patch('/avatar', protect, updateAvatar);
 router.post('/logout', protect, logout);
 
 export default router;

@@ -267,3 +267,55 @@ export const verifyResetOTP = asyncHandler(async (req, res, next) => {
     message: 'Password reset successful. Please login with your new password'
   });
 });
+
+// ============ AVATAR UPDATE ============
+
+
+/// @desc    Update user avatar
+// @route   PATCH /api/auth/avatar
+// @access  Private
+export const updateAvatar = asyncHandler(async (req, res, next) => {
+  const { avatar, avatarPublicId } = req.body;
+
+  if (avatar === undefined || avatar === null) {
+    throw new AppError('Please provide avatar URL', 400);
+  }
+
+  // Get current user with old publicId
+  const existingUser = await User.findById(req.user.id);
+  
+  if (!existingUser) {
+    throw new AppError('User not found', 404);
+  }
+
+  // Delete old avatar from Cloudinary if it exists and is different from the new one
+  if (existingUser.avatarPublicId && existingUser.avatarPublicId !== avatarPublicId) {
+    try {
+      const cloudinary = (await import('../config/cloudinary.config.js')).default;
+      const deleteResult = await cloudinary.uploader.destroy(existingUser.avatarPublicId);
+      console.log('Old avatar deleted:', deleteResult);
+    } catch (error) {
+      console.error('Failed to delete old avatar:', error.message);
+    }
+  }
+
+  // Update user
+  const user = await User.findByIdAndUpdate(
+    req.user.id,
+    { 
+      avatar: avatar || '',
+      avatarPublicId: avatarPublicId || null
+    },
+    { new: true }
+  ).select('-password');
+
+  res.status(200).json({
+    success: true,
+    message: avatar ? 'Avatar updated' : 'Avatar removed',
+    user: {
+      id: user._id,
+      avatar: user.avatar,
+      avatarPublicId: user.avatarPublicId
+    }
+  });
+});

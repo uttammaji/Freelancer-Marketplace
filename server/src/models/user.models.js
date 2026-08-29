@@ -29,7 +29,6 @@ const userSchema = new Schema({
     password: {
         type: String,
         required: true,
-        // select: false 
     },
     // Role 
     role: {
@@ -38,16 +37,19 @@ const userSchema = new Schema({
         enum: ["client", "freelancer", "admin"], 
         default: "client"    
     },
-    // Avatar 
+    // Avatar URL
     avatar: {
         type: String,
-        // required: true,  
         default: ""          
+    },
+    // Cloudinary public ID for avatar (used for deletion)
+    avatarPublicId: {
+        type: String,
+        default: null
     },
     // Phone
     phone: {
         type: String,
-        // required: true,    
         default: ""
     },
     // Email verification status
@@ -69,18 +71,9 @@ const userSchema = new Schema({
     lastLogin: {              
         type: Date,
     },
-    // Timestamps for record tracking
-    createdAt: {
-        type: Date,
-        default: Date.now     
-    },
-    updatedAt: {
-        type: Date,
-        default: Date.now    
-    }
 }, {
     timestamps: true          
 });
 
 // Export User model
-export const User = mongoose.model("User", userSchema); 
+export const User = mongoose.model("User", userSchema);

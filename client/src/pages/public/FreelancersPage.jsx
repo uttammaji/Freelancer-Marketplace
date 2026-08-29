@@ -1,5 +1,5 @@
 // client/src/pages/public/FreelancersPage.jsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { getAllFreelancers } from '../../services/profile.service';
 import { FreelancerCard } from '../../components/cards/FreelancerCard';
@@ -9,7 +9,7 @@ import { Badge } from '../../components/common/Badge';
 import { Pagination } from '../../components/common/Pagination';
 import { EmptyState } from '../../components/common/EmptyState';
 import { FreelancerCardSkeleton } from '../../components/common/SkeletonLoader';
-import { SlidersHorizontal, RotateCcw, X, Loader2 } from 'lucide-react';
+import { SlidersHorizontal, RotateCcw, X } from 'lucide-react';
 
 export function FreelancersPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -39,7 +39,6 @@ export function FreelancersPage() {
       setIsLoading(true);
       
       try {
-        // Build query params
         const params = {
           page: currentPage,
           limit: itemsPerPage,
@@ -50,13 +49,11 @@ export function FreelancersPage() {
           sort: sortBy
         };
 
-        // Remove undefined params
         Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
 
         const response = await getAllFreelancers(params);
         
         if (response.success) {
-          // Map backend profiles to frontend format
           const mapped = response.profiles.map(profile => ({
             id: profile.userId?._id || profile.userId,
             name: profile.userId?.name || 'Freelancer',
@@ -249,14 +246,14 @@ export function FreelancersPage() {
           {isLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {[1, 2, 3, 4].map(i => (
-                <FreelancerCardSkeleton key={i} className="h-48 rounded-2xl" />
+                <FreelancerCardSkeleton key={i} />
               ))}
             </div>
           ) : freelancers.length > 0 ? (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 {freelancers.map((fl) => (
-                  <FreelancerCardSkeleton key={fl.id} freelancer={fl} />
+                  <FreelancerCard key={fl.id} freelancer={fl} />
                 ))}
               </div>
 

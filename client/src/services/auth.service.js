@@ -72,3 +72,8 @@ export const refreshToken = async () => {
   const response = await api.post('/auth/refresh-token');
   return response.data;
 };
+// Update user avatar
+export const updateAvatar = async (avatar, avatarPublicId) => {
+  const response = await api.patch('/auth/avatar', { avatar, avatarPublicId });
+  return response.data;
+};
