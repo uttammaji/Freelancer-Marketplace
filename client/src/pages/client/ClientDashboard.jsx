@@ -1,26 +1,23 @@
-import React from 'react';
+// client/src/pages/client/ClientDashboard.jsx
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { useMarketplace } from '../../context/MarketplaceContext';
 import { StatCard } from '../../components/dashboard/StatCard';
 import { ChartCard } from '../../components/dashboard/ChartCard';
-import { ActivityFeed } from '../../components/dashboard/ActivityFeed';
-import { ProjectCard } from '../../components/cards/ProjectCard';
-import { FreelancerCard } from '../../components/cards/FreelancerCard';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
-import { formatCurrency, formatDate } from '../../utils/formatters';
+import { FreelancerCardSkeleton } from '../../components/common/SkeletonLoader';
+import { formatCurrency } from '../../utils/formatters';
 import {
   Briefcase,
-  Users,
   CreditCard,
   FileText,
+  CheckCircle2,
   FolderPlus,
   ArrowRight,
-  TrendingUp,
-  Clock,
-  CheckCircle2,
-  Shield
+  Building,
+  Loader2,
+  Users
 } from 'lucide-react';
 import {
   AreaChart,
@@ -33,71 +30,68 @@ import {
 } from 'recharts';
 
 export function ClientDashboard() {
-  const { currentUser } = useAuth();
-  const { projects, proposals, contracts, freelancers, transactions } = useMarketplace();
+  const { currentUser, profile, fetchProfile, isProfileLoading } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
 
-  const clientProjects = projects.filter(p => p.clientId === currentUser?.id || p.clientId === 'usr-client-1');
-  const activeProjects = clientProjects.filter(p => p.status === 'open' || p.status === 'in_progress');
-  const completedProjects = clientProjects.filter(p => p.status === 'completed');
+  // Load profile on mount
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      await fetchProfile();
+      setIsLoading(false);
+    };
+    loadData();
+  }, []);
 
-  const pendingProposals = proposals.filter(p => p.status === 'pending' || p.status === 'shortlisted');
-  const totalSpent = currentUser?.totalSpent || 48500;
-
-  // Chart spend data
+  // Mock spend data (replace with real API later)
   const spendData = [
     { month: 'Mar', spend: 4200 },
     { month: 'Apr', spend: 6800 },
     { month: 'May', spend: 5400 },
     { month: 'Jun', spend: 8900 },
     { month: 'Jul', spend: 11200 },
-    { month: 'Aug', spend: 12000 }
+    { month: 'Aug', spend: profile?.totalSpent || 12000 }
   ];
 
-  const recentActivities = [
-    {
-      id: 'act-1',
-      type: 'proposal',
-      title: 'New proposal received from Rahul Sharma',
-      description: 'AI Observability Analytics Dashboard ($3,400 bid)',
-      timestamp: '10m ago',
-      link: `/dashboard/client/projects/proj-1/proposals`
-    },
-    {
-      id: 'act-2',
-      type: 'contract',
-      title: 'Elena Rostova submitted Milestone 2 deliverable',
-      description: 'FinTech Design System & Prototype',
-      timestamp: '2h ago',
-      link: `/dashboard/client/contracts/cntr-1`
-    },
-    {
-      id: 'act-3',
-      type: 'payment',
-      title: '$1,400.00 escrow deposit confirmed',
-      description: 'Milestone 2 Escrow Vault',
-      timestamp: 'Yesterday',
-      link: `/dashboard/client/payments`
-    }
-  ];
+  // Loading state
+  if (isLoading || isProfileLoading) {
+    return (
+      <div className="space-y-8">
+        <FreelancerCardSkeleton className="h-32 rounded-3xl" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => (
+            <FreelancerCardSkeleton key={i} className="h-28 rounded-2xl" />
+          ))}
+        </div>
+        <FreelancerCardSkeleton className="h-64 rounded-2xl" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
-      {/* Header Banner */}
+      {/* Welcome Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 bg-gradient-to-r from-primary-900 via-indigo-900 to-slate-900 text-white rounded-3xl shadow-soft">
         <div className="space-y-1">
           <Badge variant="primary" size="sm">Client Operations Hub</Badge>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Welcome back, {currentUser?.name?.split(' ')[0] || 'Sarah'} 👋
+            Welcome back, {currentUser?.name?.split(' ')[0] || 'Client'} 👋
           </h1>
           <p className="text-xs text-primary-200">
-            {currentUser?.company || 'Nexus Innovations'} • You have <span className="font-bold text-white">{pendingProposals.length} proposals</span> awaiting review
+            {profile?.companyName || 'Your Company'} • 
+            {' '}{profile?.industry || 'Add your industry'}
           </p>
         </div>
 
         <div className="flex items-center gap-3">
+          <Link to="/dashboard/client/settings">
+            <Button variant="secondary" size="md" className="font-bold shadow-md">
+              {profile ? 'Edit Profile' : 'Create Profile'}
+            </Button>
+          </Link>
           <Link to="/dashboard/client/projects/new">
-            <Button variant="secondary" size="md" icon={FolderPlus} className="font-bold shadow-md">
-              Post a Project
+            <Button variant="primary" size="md" icon={FolderPlus} className="font-bold shadow-md">
+              Post Project
             </Button>
           </Link>
         </div>
@@ -106,51 +100,54 @@ export function ClientDashboard() {
       {/* 4 Metric Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <StatCard
-          title="Active Projects"
-          value={activeProjects.length}
-          change="+2 this month"
+          title="Projects Posted"
+          value={profile?.projectsPosted || 0}
+          change="Total"
           isPositive={true}
           icon={Briefcase}
           color="primary"
-          subtitle="Currently in progress / open"
+          subtitle="Lifetime projects"
         />
         <StatCard
           title="Total Spent"
-          value={formatCurrency(totalSpent)}
-          change="+18.4%"
+          value={formatCurrency(profile?.totalSpent || 0)}
+          change="Lifetime"
           isPositive={true}
           icon={CreditCard}
           color="emerald"
-          subtitle="Escrow + completed milestones"
+          subtitle="Escrow + completed"
         />
         <StatCard
-          title="Pending Proposals"
-          value={pendingProposals.length}
-          change="3 shortlisted"
-          isPositive={null}
-          icon={FileText}
-          color="amber"
-          subtitle="Awaiting client decision"
-        />
-        <StatCard
-          title="Completed Projects"
-          value={completedProjects.length || 12}
-          change="100% on time"
+          title="Freelancers Hired"
+          value={profile?.totalHired || 0}
+          change="Total"
           isPositive={true}
-          icon={CheckCircle2}
+          icon={Users}
+          color="amber"
+          subtitle="Successful contracts"
+        />
+        <StatCard
+          title="Company"
+          value={profile?.companyName || 'Not Set'}
+          change={profile?.industry || 'Add industry'}
+          isPositive={true}
+          icon={Building}
           color="purple"
-          subtitle="Lifetime successfully closed"
+          subtitle="Your organization"
         />
       </div>
 
-      {/* Analytics Chart & Activity Feed */}
+      {/* Spending Chart */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Spending Recharts Chart */}
         <div className="lg:col-span-2">
           <ChartCard
-            title="Monthly Project Spend & Escrow"
-            subtitle="Cumulative investment across all milestone contracts"
-            action={<span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg">+24% vs Last Quarter</span>}
+            title="Monthly Project Spend"
+            subtitle="Cumulative investment across projects"
+            action={
+              <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg">
+                ${profile?.totalSpent || 0} Total
+              </span>
+            }
           >
             <div className="h-64 sm:h-72 w-full pt-2">
               <ResponsiveContainer width="100%" height="100%">
@@ -188,83 +185,75 @@ export function ClientDashboard() {
           </ChartCard>
         </div>
 
-        {/* Activity Feed */}
+        {/* Profile Summary */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-6 shadow-soft space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">Recent Activity</h3>
-            <span className="text-xs text-slate-400">Real-time</span>
-          </div>
-          <ActivityFeed activities={recentActivities} />
-        </div>
-      </div>
-
-      {/* Active Projects Quick Table / Cards */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Your Active Projects</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Open for proposals and ongoing contracts</p>
-          </div>
-          <Link
-            to="/dashboard/client/projects"
-            className="inline-flex items-center gap-1 text-xs font-bold text-primary-600 dark:text-primary-400 hover:underline"
-          >
-            <span>View All Projects</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {clientProjects.slice(0, 2).map((proj) => (
-            <div
-              key={proj.id}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-soft space-y-4 flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <Badge variant="primary" size="sm">{proj.category}</Badge>
-                  <span className="text-xs font-bold text-slate-900 dark:text-white">{formatCurrency(proj.budget)}</span>
-                </div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white line-clamp-1">{proj.title}</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{proj.description}</p>
-              </div>
-
-              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
-                <span className="text-xs text-slate-500 font-medium">
-                  {proj.proposalsCount || 0} Proposals received
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white">Company Summary</h3>
+          
+          {profile ? (
+            <div className="space-y-3 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Company</span>
+                <span className="font-semibold text-slate-900 dark:text-white truncate max-w-[150px]">
+                  {profile.companyName || 'Not set'}
                 </span>
-                <Link to={`/dashboard/client/projects/${proj.id}/proposals`}>
-                  <Button variant="primary" size="sm">
-                    Manage Proposals ({proj.proposalsCount || 0})
-                  </Button>
-                </Link>
               </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Industry</span>
+                <span className="font-semibold text-slate-900 dark:text-white">
+                  {profile.industry || 'Not set'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Website</span>
+                <span className="font-semibold text-primary-600 truncate max-w-[150px]">
+                  {profile.website || 'Not set'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Location</span>
+                <span className="font-semibold text-slate-900 dark:text-white">
+                  {profile.location?.city || 'Not set'}
+                </span>
+              </div>
+
+              <Link to="/dashboard/client/settings">
+                <Button variant="outline" size="sm" className="w-full mt-2">
+                  {profile.companyName ? 'Edit Profile' : 'Create Profile'}
+                </Button>
+              </Link>
             </div>
-          ))}
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-xs text-slate-400 mb-4">You haven't created your company profile yet.</p>
+              <Link to="/dashboard/client/settings">
+                <Button variant="primary" size="md">
+                  Create Profile
+                </Button>
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Recommended Freelancers Spotlight */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Recommended Top Talent</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Specialists matched to your active project scopes</p>
-          </div>
-          <Link
-            to="/freelancers"
-            className="inline-flex items-center gap-1 text-xs font-bold text-primary-600 dark:text-primary-400 hover:underline"
-          >
-            <span>Browse All Talent</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
+      {/* Quick Actions */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Link to="/dashboard/client/projects/new" className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-soft hover:border-primary-400 transition-colors">
+          <FolderPlus className="w-8 h-8 text-primary-600 mb-3" />
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white">Post Project</h3>
+          <p className="text-xs text-slate-500 mt-1">Create a new project listing</p>
+        </Link>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {freelancers.slice(0, 3).map((fl) => (
-            <FreelancerCard key={fl.id} freelancer={fl} />
-          ))}
-        </div>
+        <Link to="/dashboard/client/projects" className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-soft hover:border-primary-400 transition-colors">
+          <Briefcase className="w-8 h-8 text-emerald-600 mb-3" />
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white">My Projects</h3>
+          <p className="text-xs text-slate-500 mt-1">Manage your project listings</p>
+        </Link>
+
+        <Link to="/freelancers" className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-soft hover:border-primary-400 transition-colors">
+          <Users className="w-8 h-8 text-amber-600 mb-3" />
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white">Find Freelancers</h3>
+          <p className="text-xs text-slate-500 mt-1">Browse talent directory</p>
+        </Link>
       </div>
     </div>
   );

@@ -1,9 +1,9 @@
 // server/src/middleware/role.middleware.js
 
-// Generic role authorization middleware
 export const authorize = (...roles) => {
   return (req, res, next) => {
-    // Check if user exists (should be called after protect middleware)
+   
+    
     if (!req.user) {
       return res.status(401).json({
         success: false,
@@ -11,7 +11,6 @@ export const authorize = (...roles) => {
       });
     }
 
-    // Check if user role is allowed
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
@@ -23,7 +22,6 @@ export const authorize = (...roles) => {
   };
 };
 
-// Specific role middlewares for convenience
 export const isClient = authorize('client');
 export const isFreelancer = authorize('freelancer');
 export const isAdmin = authorize('admin');

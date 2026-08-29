@@ -51,22 +51,39 @@ const profileSchema = new mongoose.Schema({
         index: true,
     },
 
-    headline: {
+    // ============ ROLE ============
+    role: {
         type: String,
-        maxlength: 150,
-        trim: true,
+        enum: ["client", "freelancer"],
+        required: true,
     },
 
+    // ============ COMMON FIELDS (Both Client & Freelancer) ============
     bio: {
         type: String,
         maxlength: 3000,
         trim: true,
     },
 
+    location: {
+        country: String,
+        state: String,
+        city: String,
+    },
+
+    languages: [languageSchema],
+
+    // ============ FREELANCER-SPECIFIC FIELDS ============
+    headline: {
+        type: String,
+        maxlength: 150,
+        trim: true,
+    },
+
     skills: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: "Skill",
-    }, ],
+    }],
 
     hourlyRate: {
         type: Number,
@@ -79,14 +96,6 @@ const profileSchema = new mongoose.Schema({
         min: 0,
         default: 0,
     },
-
-    location: {
-        country: String,
-        state: String,
-        city: String,
-    },
-
-    languages: [languageSchema],
 
     availability: {
         status: {
@@ -109,6 +118,18 @@ const profileSchema = new mongoose.Schema({
 
     education: [educationSchema],
 
+    completedProjects: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+
+    totalEarnings: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+
     rating: {
         average: {
             type: Number,
@@ -124,26 +145,71 @@ const profileSchema = new mongoose.Schema({
         },
     },
 
-    completedProjects: {
+    // ============ CLIENT-SPECIFIC FIELDS ============
+    companyName: {
+        type: String,
+        maxlength: 200,
+        trim: true,
+    },
+
+    industry: {
+        type: String,
+        maxlength: 100,
+        trim: true,
+    },
+
+    website: {
+        type: String,
+        maxlength: 200,
+        trim: true,
+    },
+
+    totalSpent: {
         type: Number,
         default: 0,
         min: 0,
     },
 
-    totalEarnings: {
+    projectsPosted: {
         type: Number,
         default: 0,
         min: 0,
     },
 
+    totalHired: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+
+    // ============ COMMON METADATA ============
     profileCompletion: {
         type: Number,
         default: 0,
         min: 0,
         max: 100,
     },
+
+    isVerified: {
+        type: Boolean,
+        default: false,
+    },
 }, {
     timestamps: true,
+});
+
+// Index for search
+profileSchema.index({
+    role: 1,
+    "rating.average": -1,
+});
+
+profileSchema.index({
+    skills: 1,
+});
+
+profileSchema.index({
+    companyName: 1,
 });
 
 export const Profile = mongoose.model("Profile", profileSchema);

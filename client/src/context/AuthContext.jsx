@@ -1,14 +1,20 @@
 // client/src/context/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import * as authService from '../services/auth.service';
+import * as profileService from '../services/profile.service';
 
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
+  // ============ STATE ============
   const [currentUser, setCurrentUser] = useState(null);
   const [token, setToken] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [profile, setProfile] = useState(null);           //  Profile state
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
 
+  // ============ LOCAL STORAGE EFFECTS ============
+  
   // Load user from localStorage on mount
   useEffect(() => {
     const savedToken = localStorage.getItem('skillhire_token');
@@ -27,7 +33,7 @@ export function AuthProvider({ children }) {
     setIsLoading(false);
   }, []);
 
-  // Save to localStorage when changed
+  // Save token to localStorage
   useEffect(() => {
     if (token) {
       localStorage.setItem('skillhire_token', token);
@@ -36,6 +42,7 @@ export function AuthProvider({ children }) {
     }
   }, [token]);
 
+  // Save user to localStorage
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem('skillhire_user', JSON.stringify(currentUser));
@@ -44,7 +51,9 @@ export function AuthProvider({ children }) {
     }
   }, [currentUser]);
 
-  // Register - Step 1: Send user data, get OTP
+  // ============ AUTH FUNCTIONS ============
+
+  // Register - Step 1
   const register = async (userData) => {
     try {
       const response = await authService.registerUser(userData);
@@ -57,7 +66,7 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Verify Registration - Step 2: Verify OTP, get token
+  // Verify Registration - Step 2
   const verifyRegistration = async (email, otp) => {
     try {
       const response = await authService.verifyRegistration(email, otp);
@@ -76,7 +85,7 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Login - Step 1: Password check, get OTP
+  // Login - Step 1
   const login = async (email, password) => {
     try {
       const response = await authService.loginUser(email, password);
@@ -89,7 +98,7 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Verify Login - Step 2: Verify OTP, get token
+  // Verify Login - Step 2
   const verifyLogin = async (email, otp) => {
     try {
       const response = await authService.verifyLoginOTP(email, otp);
@@ -143,10 +152,11 @@ export function AuthProvider({ children }) {
     } finally {
       setToken(null);
       setCurrentUser(null);
+      setProfile(null);  // Clear profile on logout
     }
   };
 
-  // Update profile
+  // Update user profile (local state)
   const updateProfile = (updates) => {
     setCurrentUser(prev => ({
       ...prev,
@@ -154,7 +164,46 @@ export function AuthProvider({ children }) {
     }));
   };
 
-  // Resend OTP helpers
+  // ============ PROFILE FUNCTIONS ============
+
+  // Fetch profile from backend
+  const fetchProfile = async () => {
+    setIsProfileLoading(true);
+    try {
+      const response = await profileService.getMyProfile();
+      if (response.success) {
+        setProfile(response.profile);
+      }
+      return { success: true, data: response };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error.response?.data?.message || 'Failed to fetch profile',
+        notFound: error.response?.status === 404
+      };
+    } finally {
+      setIsProfileLoading(false);
+    }
+  };
+
+  // Save profile to backend
+  const saveProfile = async (profileData) => {
+    try {
+      const response = await profileService.saveProfile(profileData);
+      if (response.success) {
+        setProfile(response.profile);
+      }
+      return { success: true, data: response };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error.response?.data?.message || 'Failed to save profile' 
+      };
+    }
+  };
+
+  // ============ RESEND OTP HELPERS ============
+
   const resendRegistrationOTP = async (email) => {
     return authService.resendRegistrationOTP(email);
   };
@@ -167,13 +216,18 @@ export function AuthProvider({ children }) {
     return authService.resendResetOTP(email);
   };
 
+  // ============ CONTEXT VALUE ============
+
   const value = {
+    // User
     currentUser,
     user: currentUser,
     token,
     role: currentUser?.role || 'guest',
     isAuthenticated: !!currentUser && !!token,
     isLoading,
+    
+    // Auth functions
     register,
     verifyRegistration,
     login,
@@ -182,9 +236,17 @@ export function AuthProvider({ children }) {
     resetPassword,
     logout,
     updateProfile,
+    
+    // OTP resend
     resendRegistrationOTP,
     resendLoginOTP,
     resendResetOTP,
+    
+    // Profile
+    profile,
+    isProfileLoading,
+    fetchProfile,
+    saveProfile,
   };
 
   return (

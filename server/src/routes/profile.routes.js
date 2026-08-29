@@ -5,6 +5,7 @@ import {
   getMyProfile,
   getProfileByUserId,
   getAllFreelancers,
+  getAllClients,
   deleteProfile,
   updateAvailability
 } from '../controllers/profile.controller.js';
@@ -14,16 +15,15 @@ import { cacheMiddleware } from '../middleware/cache.middleware.js';
 
 const router = express.Router();
 
+// Private routes
+router.get('/me', protect, getMyProfile);
+router.post('/', protect, createOrUpdateProfile);
+router.delete('/', protect, deleteProfile);
+router.patch('/availability', protect, isFreelancer, updateAvailability);
+
 // Public routes
 router.get('/freelancers', cacheMiddleware('freelancers', 300), getAllFreelancers);
-router.get('/user/:userId', cacheMiddleware('freelancer-profile', 300), getProfileByUserId);
-
-// Private routes (any logged-in user)
-router.get('/me', protect, getMyProfile);
-
-// Freelancer only routes
-router.post('/', protect, isFreelancer, createOrUpdateProfile);
-router.delete('/', protect, isFreelancer, deleteProfile);
-router.patch('/availability', protect, isFreelancer, updateAvailability);
+router.get('/clients', cacheMiddleware('clients', 300), getAllClients);
+router.get('/user/:userId', cacheMiddleware('profile', 300), getProfileByUserId);
 
 export default router;

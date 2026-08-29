@@ -1,105 +1,111 @@
-import React, { useState, useMemo } from 'react';
+// client/src/pages/public/FreelancersPage.jsx
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useMarketplace } from '../../context/MarketplaceContext';
-import { mockCategories } from '../../data/mockCategories';
+import { getAllFreelancers } from '../../services/profile.service';
 import { FreelancerCard } from '../../components/cards/FreelancerCard';
 import { SearchBar } from '../../components/common/SearchBar';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { Pagination } from '../../components/common/Pagination';
 import { EmptyState } from '../../components/common/EmptyState';
-import { SlidersHorizontal, RotateCcw, X, Star, Users } from 'lucide-react';
+import { FreelancerCardSkeleton } from '../../components/common/SkeletonLoader';
+import { SlidersHorizontal, RotateCcw, X, Loader2 } from 'lucide-react';
 
 export function FreelancersPage() {
-  const { freelancers } = useMarketplace();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const querySearch = searchParams.get('search') || '';
-  const queryCategory = searchParams.get('category') || 'All';
 
   const [search, setSearch] = useState(querySearch);
-  const [selectedCategory, setSelectedCategory] = useState(queryCategory);
   const [minRate, setMinRate] = useState(0);
   const [maxRate, setMaxRate] = useState(150);
   const [minRating, setMinRating] = useState(0);
   const [onlyAvailable, setOnlyAvailable] = useState(false);
-  const [selectedSkills, setSelectedSkills] = useState([]);
-  const [sortBy, setSortBy] = useState('rating'); // 'rating', 'rate_low', 'rate_high', 'earned'
+  const [sortBy, setSortBy] = useState('rating');
   const [currentPage, setCurrentPage] = useState(1);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
-  const allAvailableSkills = ['React', 'TypeScript', 'Node.js', 'Figma', 'Python', 'Flutter', 'Tailwind CSS', 'AWS', 'OpenAI API', 'GraphQL', 'Docker'];
+  // Backend data state
+  const [freelancers, setFreelancers] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
 
-  const toggleSkill = (skill) => {
-    setSelectedSkills(prev =>
-      prev.includes(skill) ? prev.filter(s => s !== skill) : [...prev, skill]
-    );
-    setCurrentPage(1);
+  const itemsPerPage = 6;
+
+  // Fetch freelancers from backend
+  useEffect(() => {
+    const loadFreelancers = async () => {
+      setIsLoading(true);
+      
+      try {
+        // Build query params
+        const params = {
+          page: currentPage,
+          limit: itemsPerPage,
+          search: search || undefined,
+          availability: onlyAvailable ? 'available' : undefined,
+          minRate: minRate > 0 ? minRate : undefined,
+          maxRate: maxRate < 150 ? maxRate : undefined,
+          sort: sortBy
+        };
+
+        // Remove undefined params
+        Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
+
+        const response = await getAllFreelancers(params);
+        
+        if (response.success) {
+          // Map backend profiles to frontend format
+          const mapped = response.profiles.map(profile => ({
+            id: profile.userId?._id || profile.userId,
+            name: profile.userId?.name || 'Freelancer',
+            avatar: profile.userId?.avatar || '',
+            title: profile.headline || 'Professional Freelancer',
+            about: profile.bio || '',
+            shortBio: profile.bio?.substring(0, 100) || '',
+            hourlyRate: profile.hourlyRate || 0,
+            location: formatLocation(profile.location),
+            rating: profile.rating?.average || 0,
+            reviewsCount: profile.rating?.count || 0,
+            skills: profile.skills?.map(s => typeof s === 'string' ? s : s.name) || [],
+            isAvailable: profile.availability?.status === 'available',
+            totalEarned: profile.totalEarnings || 0,
+            jobsCompleted: profile.completedProjects || 0,
+            isVerified: profile.isVerified || false
+          }));
+
+          setFreelancers(mapped);
+          setTotalPages(response.totalPages || 1);
+          setTotalCount(response.total || 0);
+        }
+      } catch (error) {
+        console.error('Failed to load freelancers:', error);
+        setFreelancers([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadFreelancers();
+  }, [currentPage, search, minRate, maxRate, onlyAvailable, sortBy]);
+
+  const formatLocation = (location) => {
+    if (!location) return 'Remote / Global';
+    const parts = [location.city, location.country].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : 'Remote / Global';
   };
 
   const handleResetFilters = () => {
     setSearch('');
-    setSelectedCategory('All');
     setMinRate(0);
     setMaxRate(150);
     setMinRating(0);
     setOnlyAvailable(false);
-    setSelectedSkills([]);
     setSortBy('rating');
     setCurrentPage(1);
     setSearchParams({});
   };
-
-  const filteredFreelancers = useMemo(() => {
-    return freelancers.filter(fl => {
-      // Search query
-      if (search.trim()) {
-        const q = search.toLowerCase();
-        const matchName = fl.name?.toLowerCase().includes(q);
-        const matchTitle = fl.title?.toLowerCase().includes(q);
-        const matchBio = fl.about?.toLowerCase().includes(q) || fl.shortBio?.toLowerCase().includes(q);
-        const matchSkill = fl.skills?.some(s => s.toLowerCase().includes(q));
-        if (!matchName && !matchTitle && !matchBio && !matchSkill) return false;
-      }
-
-      // Category
-      if (selectedCategory !== 'All' && fl.category !== selectedCategory) {
-        return false;
-      }
-
-      // Rate range
-      if (fl.hourlyRate < minRate || fl.hourlyRate > maxRate) {
-        return false;
-      }
-
-      // Rating
-      if (minRating > 0 && fl.rating < minRating) {
-        return false;
-      }
-
-      // Only Available
-      if (onlyAvailable && !fl.isAvailable) {
-        return false;
-      }
-
-      // Skills multi-select
-      if (selectedSkills.length > 0) {
-        const hasAll = selectedSkills.every(s => fl.skills?.includes(s));
-        if (!hasAll) return false;
-      }
-
-      return true;
-    }).sort((a, b) => {
-      if (sortBy === 'rate_high') return b.hourlyRate - a.hourlyRate;
-      if (sortBy === 'rate_low') return a.hourlyRate - b.hourlyRate;
-      if (sortBy === 'earned') return (b.totalEarned || 0) - (a.totalEarned || 0);
-      return (b.rating || 5) - (a.rating || 5);
-    });
-  }, [freelancers, search, selectedCategory, minRate, maxRate, minRating, onlyAvailable, selectedSkills, sortBy]);
-
-  const itemsPerPage = 6;
-  const totalPages = Math.ceil(filteredFreelancers.length / itemsPerPage) || 1;
-  const paginatedFreelancers = filteredFreelancers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const FilterSidebarContent = (
     <div className="space-y-6 text-xs">
@@ -117,53 +123,33 @@ export function FreelancersPage() {
         </button>
       </div>
 
-      {/* Category */}
-      <div>
-        <label className="block font-bold uppercase tracking-wider text-slate-400 mb-2">Primary Domain</label>
-        <select
-          value={selectedCategory}
-          onChange={(e) => {
-            setSelectedCategory(e.target.value);
-            setCurrentPage(1);
-          }}
-          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
-        >
-          <option value="All">All Disciplines</option>
-          {mockCategories.map(c => (
-            <option key={c.id} value={c.name}>{c.name}</option>
-          ))}
-        </select>
-      </div>
-
       {/* Hourly Rate Filter */}
       <div>
         <div className="flex justify-between items-center mb-2">
           <label className="font-bold uppercase tracking-wider text-slate-400">Hourly Rate</label>
           <span className="font-bold text-slate-900 dark:text-white">${minRate} - ${maxRate}/hr</span>
         </div>
-        <div className="flex items-center gap-2">
-          <input
-            type="range"
-            min="0"
-            max="150"
-            step="5"
-            value={maxRate}
-            onChange={(e) => {
-              setMaxRate(Number(e.target.value));
-              setCurrentPage(1);
-            }}
-            className="w-full accent-primary-600 cursor-pointer"
-          />
-        </div>
+        <input
+          type="range"
+          min="0"
+          max="150"
+          step="5"
+          value={maxRate}
+          onChange={(e) => {
+            setMaxRate(Number(e.target.value));
+            setCurrentPage(1);
+          }}
+          className="w-full accent-primary-600 cursor-pointer"
+        />
       </div>
 
-      {/* Rating */}
+      {/* Rating Filter */}
       <div>
         <label className="block font-bold uppercase tracking-wider text-slate-400 mb-2">Minimum Rating</label>
         <div className="space-y-1.5">
           {[
             { val: 0, label: 'Any Rating' },
-            { val: 4.8, label: '4.8 ★ & above (Top Rated)' },
+            { val: 4.8, label: '4.8 ★ & above' },
             { val: 4.5, label: '4.5 ★ & above' },
           ].map(r => (
             <label key={r.val} className="flex items-center gap-2.5 cursor-pointer text-slate-700 dark:text-slate-300">
@@ -180,30 +166,6 @@ export function FreelancersPage() {
               <span>{r.label}</span>
             </label>
           ))}
-        </div>
-      </div>
-
-      {/* Skills */}
-      <div>
-        <label className="block font-bold uppercase tracking-wider text-slate-400 mb-2">Skills</label>
-        <div className="flex flex-wrap gap-1.5">
-          {allAvailableSkills.map(skill => {
-            const isSelected = selectedSkills.includes(skill);
-            return (
-              <button
-                key={skill}
-                type="button"
-                onClick={() => toggleSkill(skill)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
-                  isSelected
-                    ? 'bg-primary-600 text-white border-primary-600 shadow-xs'
-                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-slate-400'
-                }`}
-              >
-                {skill}
-              </button>
-            );
-          })}
         </div>
       </div>
 
@@ -235,7 +197,7 @@ export function FreelancersPage() {
             Find Expert Freelancers
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Browse <span className="font-bold text-slate-900 dark:text-white">{filteredFreelancers.length}</span> vetted senior professionals ready to hire
+            Browse <span className="font-bold text-slate-900 dark:text-white">{totalCount}</span> vetted professionals ready to hire
           </p>
         </div>
       </div>
@@ -263,36 +225,38 @@ export function FreelancersPage() {
             <span>Filters</span>
           </button>
 
-          <div className="flex items-center gap-2">
-            <span className="hidden sm:inline text-xs font-semibold text-slate-400 whitespace-nowrap">Sort by:</span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 font-semibold focus:outline-none focus:ring-2 focus:ring-primary-500/20 cursor-pointer"
-            >
-              <option value="rating">Highest Rated</option>
-              <option value="rate_high">Highest Hourly Rate</option>
-              <option value="rate_low">Lowest Hourly Rate</option>
-              <option value="earned">Total Earned</option>
-            </select>
-          </div>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 font-semibold focus:outline-none focus:ring-2 focus:ring-primary-500/20 cursor-pointer"
+          >
+            <option value="rating">Highest Rated</option>
+            <option value="rate_high">Highest Rate</option>
+            <option value="rate_low">Lowest Rate</option>
+          </select>
         </div>
       </div>
 
-      {/* Main Grid: Filters + Freelancer Cards */}
+      {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
-        {/* Desktop Left Filter Sidebar */}
+        {/* Desktop Filter Sidebar */}
         <div className="hidden lg:block lg:col-span-1 p-6 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-2xl shadow-soft sticky top-24">
           {FilterSidebarContent}
         </div>
 
         {/* Results */}
         <div className="lg:col-span-3 space-y-4">
-          {paginatedFreelancers.length > 0 ? (
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[1, 2, 3, 4].map(i => (
+                <FreelancerCardSkeleton key={i} className="h-48 rounded-2xl" />
+              ))}
+            </div>
+          ) : freelancers.length > 0 ? (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                {paginatedFreelancers.map((fl) => (
-                  <FreelancerCard key={fl.id} freelancer={fl} />
+                {freelancers.map((fl) => (
+                  <FreelancerCardSkeleton key={fl.id} freelancer={fl} />
                 ))}
               </div>
 
@@ -309,7 +273,7 @@ export function FreelancersPage() {
           ) : (
             <EmptyState
               title="No freelancers found"
-              description="Try adjusting your rate limits or clearing selected skill filters."
+              description="Try adjusting your filters."
               actionLabel="Reset Filters"
               onAction={handleResetFilters}
             />
