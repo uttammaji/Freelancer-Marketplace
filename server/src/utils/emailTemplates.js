@@ -303,3 +303,277 @@ export const passwordResetSuccessTemplate = (user) => {
     </html>
   `;
 };
+
+
+// ============ PASSWORD CHANGE TEMPLATE ============
+
+export const passwordChangeTemplate = (user) => {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          max-width: 600px;
+          margin: 0 auto;
+          padding: 20px;
+          background: #f5f5f5;
+        }
+        .container {
+          background: white;
+          padding: 40px;
+          border-radius: 15px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header {
+          text-align: center;
+          color: #f59e0b;
+          font-size: 24px;
+          font-weight: bold;
+          margin-bottom: 30px;
+        }
+        .warning {
+          background: #fef3c7;
+          border-left: 4px solid #f59e0b;
+          padding: 15px;
+          border-radius: 8px;
+          margin: 20px 0;
+        }
+        .info {
+          color: #666;
+          text-align: center;
+          margin-top: 20px;
+          font-size: 12px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">Password Changed</div>
+        <p>Hi ${user.name},</p>
+        <p>Your password was changed successfully.</p>
+        <div class="warning">
+          <strong>Security Alert:</strong>
+          <p>If you did not make this change, please contact support immediately and reset your password.</p>
+        </div>
+        <p class="info">This change was made on: ${new Date().toLocaleString()}</p>
+        <p class="info">© ${new Date().getFullYear()} Freelancer Marketplace</p>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
+// ============ EMAIL CHANGE TEMPLATE ============
+
+export const emailChangeTemplate = (user, newEmail) => {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          max-width: 600px;
+          margin: 0 auto;
+          padding: 20px;
+          background: #f5f5f5;
+        }
+        .container {
+          background: white;
+          padding: 40px;
+          border-radius: 15px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header {
+          text-align: center;
+          color: #667eea;
+          font-size: 24px;
+          font-weight: bold;
+          margin-bottom: 30px;
+        }
+        .email-box {
+          background: #eef2ff;
+          border: 2px dashed #667eea;
+          border-radius: 10px;
+          padding: 15px;
+          text-align: center;
+          margin: 20px 0;
+        }
+        .email-box .old {
+          color: #ef4444;
+          text-decoration: line-through;
+          font-size: 14px;
+        }
+        .email-box .new {
+          color: #10b981;
+          font-size: 16px;
+          font-weight: bold;
+        }
+        .arrow {
+          text-align: center;
+          font-size: 20px;
+          color: #667eea;
+          margin: 10px 0;
+        }
+        .warning {
+          background: #fef3c7;
+          border-left: 4px solid #f59e0b;
+          padding: 15px;
+          border-radius: 8px;
+          margin-top: 20px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">Email Change Notification</div>
+        <p>Hi ${user.name},</p>
+        <p>Your email address has been changed successfully.</p>
+        
+        <div class="email-box">
+          <p class="old">${user.email}</p>
+          <div class="arrow">↓</div>
+          <p class="new">${newEmail}</p>
+        </div>
+
+        <div class="warning">
+          <strong>Important:</strong>
+          <p>If you did not request this change, please contact support immediately.</p>
+        </div>
+        
+        <p style="margin-top: 20px;">This change was made on: ${new Date().toLocaleString()}</p>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
+// ============ ACCOUNT LOCKED TEMPLATE ============
+
+export const accountLockedTemplate = (user, lockDuration) => {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          max-width: 600px;
+          margin: 0 auto;
+          padding: 20px;
+          background: #f5f5f5;
+        }
+        .container {
+          background: white;
+          padding: 40px;
+          border-radius: 15px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header {
+          text-align: center;
+          color: #ef4444;
+          font-size: 24px;
+          font-weight: bold;
+          margin-bottom: 30px;
+        }
+        .lock-icon {
+          text-align: center;
+          font-size: 48px;
+          margin-bottom: 20px;
+        }
+        .info {
+          background: #fee2e2;
+          border-left: 4px solid #ef4444;
+          padding: 15px;
+          border-radius: 8px;
+          margin: 20px 0;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="lock-icon">🔒</div>
+        <div class="header">Account Temporarily Locked</div>
+        <p>Hi ${user.name},</p>
+        <p>Your account has been locked due to multiple failed login attempts.</p>
+        
+        <div class="info">
+          <strong>Lock Details:</strong>
+          <p>Duration: ${lockDuration} minutes</p>
+          <p>Reason: Too many failed password attempts</p>
+        </div>
+
+        <p>Your account will be automatically unlocked after the lock period.</p>
+        <p>If this wasn't you, we recommend changing your password immediately.</p>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
+// ============ PHONE VERIFIED TEMPLATE ============
+
+export const phoneVerifiedTemplate = (user, phone) => {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          max-width: 600px;
+          margin: 0 auto;
+          padding: 20px;
+          background: #f5f5f5;
+        }
+        .container {
+          background: white;
+          padding: 40px;
+          border-radius: 15px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header {
+          text-align: center;
+          color: #10b981;
+          font-size: 24px;
+          font-weight: bold;
+          margin-bottom: 30px;
+        }
+        .success-icon {
+          text-align: center;
+          font-size: 48px;
+          margin-bottom: 20px;
+        }
+        .phone-box {
+          background: #d1fae5;
+          border-radius: 10px;
+          padding: 15px;
+          text-align: center;
+          margin: 20px 0;
+        }
+        .phone {
+          font-size: 18px;
+          font-weight: bold;
+          color: #059669;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="success-icon">✅</div>
+        <div class="header">Phone Verified</div>
+        <p>Hi ${user.name},</p>
+        <p>Your phone number has been verified successfully.</p>
+        
+        <div class="phone-box">
+          <p class="phone">${phone}</p>
+        </div>
+
+        <p>Your account is now more secure.</p>
+      </div>
+    </body>
+    </html>
+  `;
+};

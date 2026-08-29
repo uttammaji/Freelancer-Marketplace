@@ -1,5 +1,6 @@
 // server/src/utils/otp.utils.js
 import redis from '../config/redis.config.js';
+import bcrypt from 'bcryptjs';
 import { sendEmail } from './sendEmail.js';
 import { otpEmailTemplate } from './emailTemplates.js';
 import { AppError } from '../middleware/error.middleware.js';
@@ -9,18 +10,32 @@ export const generateOTP = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
-// Create and store OTP in Redis
+// Hash OTP before storing
+export const hashOTP = async (otp) => {
+  const salt = await bcrypt.genSalt(10);
+  return await bcrypt.hash(otp, salt);
+};
+
+// Verify OTP against hash
+export const verifyOTPHash = async (otp, hashedOTP) => {
+  return await bcrypt.compare(otp, hashedOTP);
+};
+
+// Create and store OTP in Redis (hashed)
 export const createOTP = async (email, purpose) => {
   const otp = generateOTP();
   const key = `otp:${purpose}:${email}`;
   
-  // Store OTP with 5 minutes expiry
-  await redis.set(key, otp, 'EX', 300);
+  // Hash OTP before storing
+  const hashedOTP = await hashOTP(otp);
+  
+  // Store hashed OTP with 5 minutes expiry
+  await redis.set(key, hashedOTP, 'EX', 300);
   
   // Initialize attempts counter
   await redis.set(`${key}:attempts`, 0, 'EX', 300);
   
-  // Send email using template
+  // Send email using template (plain OTP to user)
   await sendEmail({
     email,
     subject: getOTPSubject(purpose),
@@ -35,19 +50,22 @@ const getOTPSubject = (purpose) => {
   const subjects = {
     registration: 'Your Registration OTP',
     login: 'Your Login OTP',
-    password_reset: 'Your Password Reset OTP'
+    password_reset: 'Your Password Reset OTP',
+    email_change_old: 'Email Change Verification - Old Email',
+    email_change_new: 'Email Change Verification - New Email',
+    phone_verification: 'Phone Verification OTP'
   };
   return subjects[purpose] || 'Your OTP Code';
 };
 
-// Verify OTP from Redis
+// Verify OTP from Redis (with hashed comparison)
 export const verifyOTP = async (email, otp, purpose) => {
   const key = `otp:${purpose}:${email}`;
   
-  // Get stored OTP
-  const storedOTP = await redis.get(key);
+  // Get stored hashed OTP
+  const storedHashedOTP = await redis.get(key);
   
-  if (!storedOTP) {
+  if (!storedHashedOTP) {
     throw new AppError('OTP has expired. Please request new OTP', 400);
   }
   
@@ -60,8 +78,10 @@ export const verifyOTP = async (email, otp, purpose) => {
     throw new AppError('Too many attempts. Please request new OTP', 400);
   }
   
-  // Verify OTP
-  if (storedOTP !== otp) {
+  // Verify OTP against hash
+  const isOTPValid = await verifyOTPHash(otp, storedHashedOTP);
+  
+  if (!isOTPValid) {
     await redis.incr(`${key}:attempts`);
     throw new AppError('Invalid OTP', 400);
   }
@@ -74,7 +94,6 @@ export const verifyOTP = async (email, otp, purpose) => {
 };
 
 // Rate limit OTP requests
-
 export const checkOTPRateLimit = async (email, purpose) => {
   const key = `otp:ratelimit:${purpose}:${email}`;
   

@@ -1,14 +1,12 @@
 // server/src/models/user.models.js
 import mongoose, { Schema } from 'mongoose';
 
-// User Schema Definition
 const userSchema = new Schema({
     name: {
         type: String,
         required: true,       
         trim: true             
     },
-    // Username
     username: {
         type: String,
         required: true,
@@ -17,7 +15,6 @@ const userSchema = new Schema({
         trim: true,          
         index: true          
     },
-    // Email 
     email: {
         type: String,
         required: true,
@@ -25,55 +22,94 @@ const userSchema = new Schema({
         lowercase: true,     
         trim: true,         
     },
-    // Password 
     password: {
         type: String,
         required: true,
     },
-    // Role 
     role: {
         type: String,
         required: true,
         enum: ["client", "freelancer", "admin"], 
         default: "client"    
     },
-    // Avatar URL
     avatar: {
         type: String,
         default: ""          
     },
-    // Cloudinary public ID for avatar (used for deletion)
     avatarPublicId: {
         type: String,
         default: null
     },
-    // Phone
     phone: {
         type: String,
         default: ""
     },
-    // Email verification status
     isEmailVerified: {
         type: Boolean,
         default: false        
     },
-    // Phone verification status
     isPhoneVerified: {
         type: Boolean,
         default: false        
     },
-    // Block status - admin can block users
     isBlocked: {
         type: Boolean,
         default: false        
     },
-    // Last login timestamp
     lastLogin: {              
         type: Date,
+    },
+
+    // ============ SECURITY FIELDS ============
+    
+    // Account lockout tracking
+    loginAttempts: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    lockUntil: {
+        type: Date,
+        default: null
+    },
+    
+    // Password tracking
+    lastPasswordChange: {
+        type: Date,
+        default: Date.now
+    },
+    
+    // Token rotation version
+    tokenVersion: {
+        type: Number,
+        default: 0
+    },
+    
+    // Social login
+    googleId: {
+        type: String,
+        default: null,
+        unique: true,
+        sparse: true
+    },
+    
+    // Email change tracking
+    pendingEmail: {
+        type: String,
+        default: null
+    },
+    pendingEmailExpires: {
+        type: Date,
+        default: null
     },
 }, {
     timestamps: true          
 });
 
-// Export User model
+// Indexes for performance
+userSchema.index({ email: 1 });
+userSchema.index({ username: 1 });
+userSchema.index({ role: 1 });
+userSchema.index({ googleId: 1 });
+
 export const User = mongoose.model("User", userSchema);

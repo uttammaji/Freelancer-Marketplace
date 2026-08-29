@@ -1,6 +1,7 @@
 // server/src/middleware/auth.middleware.js
 import jwt from 'jsonwebtoken';
 import { User } from '../models/user.models.js';
+import redis from '../config/redis.config.js';
 
 export const protect = async (req, res, next) => {
   try {
@@ -18,6 +19,15 @@ export const protect = async (req, res, next) => {
       return res.status(401).json({
         success: false,
         message: 'Not authorized, no token provided'
+      });
+    }
+
+    // Check if token is blacklisted
+    const isBlacklisted = await redis.get(`blacklist:${token}`);
+    if (isBlacklisted) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token has been revoked. Please login again'
       });
     }
 
@@ -53,6 +63,7 @@ export const protect = async (req, res, next) => {
 
     // Attach user to request
     req.user = user;
+    req.token = token;
     next();
   } catch (error) {
     console.error('Auth middleware error:', error.message);
