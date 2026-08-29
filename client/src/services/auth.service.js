@@ -77,3 +77,110 @@ export const updateAvatar = async (avatar, avatarPublicId) => {
   const response = await api.patch('/auth/avatar', { avatar, avatarPublicId });
   return response.data;
 };
+
+
+
+// ============ CHANGE PASSWORD ============
+
+/**
+ * Change password (logged-in user)
+ */
+export const changePassword = async (currentPassword, newPassword) => {
+  const response = await api.post('/auth/change-password', { currentPassword, newPassword });
+  return response.data;
+};
+
+// ============ USERNAME CHANGE ============
+
+/**
+ * Change username
+ */
+export const changeUsername = async (username) => {
+  const response = await api.patch('/auth/username', { username });
+  return response.data;
+};
+
+// ============ PHONE VERIFICATION ============
+
+/**
+ * Send OTP to phone
+ */
+export const sendPhoneOTP = async (phone) => {
+  const response = await api.post('/auth/send-phone-otp', { phone });
+  return response.data;
+};
+
+/**
+ * Verify phone OTP
+ */
+export const verifyPhoneOTP = async (phone, otp) => {
+  const response = await api.post('/auth/verify-phone-otp', { phone, otp });
+  return response.data;
+};
+
+// ============ PHONE CHANGE (DUAL OTP) ============
+
+/**
+ * Step 1: Initiate phone change - Send OTP to old phone
+ */
+export const changePhone = async (newPhone) => {
+  const response = await api.post('/auth/change-phone', { newPhone });
+  return response.data;
+};
+
+/**
+ * Step 2: Verify old phone OTP
+ */
+export const verifyOldPhoneOTP = async (newPhone, oldPhoneOTP) => {
+  const response = await api.post('/auth/verify-old-phone-otp', { newPhone, oldPhoneOTP });
+  return response.data;
+};
+
+/**
+ * Step 3: Verify new phone OTP - Complete change
+ */
+export const verifyNewPhoneOTP = async (newPhone, newPhoneOTP) => {
+  const response = await api.post('/auth/verify-new-phone-otp', { newPhone, newPhoneOTP });
+  return response.data;
+};
+
+// ============ EMAIL CHANGE ============
+
+/**
+ * Step 1: Request email change
+ */
+export const changeEmail = async (newEmail) => {
+  const response = await api.post('/auth/change-email', { newEmail });
+  return response.data;
+};
+
+/**
+ * Step 2: Verify email change with both OTPs
+ */
+export const verifyEmailChange = async (newEmail, oldEmailOTP, newEmailOTP) => {
+  const response = await api.post('/auth/verify-email-change', { 
+    newEmail, 
+    oldEmailOTP, 
+    newEmailOTP 
+  });
+  return response.data;
+};
+
+// ============ GOOGLE OAUTH ============
+
+/**
+ * Get Google OAuth URL
+ */
+export const getGoogleAuthUrl = () => {
+  return `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/auth/google`;
+};
+
+/**
+ * Handle Google OAuth callback
+ */
+export const handleGoogleCallback = async (token) => {
+  if (token) {
+    localStorage.setItem('skillhire_token', token);
+  }
+  return token;
+};

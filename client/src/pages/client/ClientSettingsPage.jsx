@@ -5,180 +5,66 @@ import { useToast } from '../../context/ToastContext';
 import { Input } from '../../components/common/Input';
 import { Textarea } from '../../components/common/Textarea';
 import { Button } from '../../components/common/Button';
-import { Badge } from '../../components/common/Badge';
 import { Avatar } from '../../components/common/Avatar';
-import { UploadProgress } from '../../components/upload/UploadProgress';
+import { SettingsLayout } from '../../components/settings/SettingsLayout';
+import { ChangePasswordModal } from '../../components/settings/ChangePasswordModal';
+import { PhoneVerificationModal } from '../../components/settings/PhoneVerificationModal';
+import { EmailChangeModal } from '../../components/settings/EmailChangeModal';
+import { LocationSelect } from '../../components/settings/LocationSelect';
 import { 
-  Building, 
-  MapPin, 
-  Globe, 
-  Save, 
-  Loader2, 
-  Factory, 
-  Camera,
-  Trash2,
-  Mail,
-  Users,
-  Briefcase,
-  CreditCard,
-  CheckCircle2,
-  AlertCircle,
-  TrendingUp
+  Building, Globe, Save, Loader2, Factory,
+  Camera, Trash2, Mail, User, Shield, Phone,
+  CheckCircle2, AlertCircle
 } from 'lucide-react';
 
 export function ClientSettingsPage() {
   const { 
-    currentUser, 
-    profile, 
-    fetchProfile, 
-    saveProfile, 
-    isProfileLoading,
-    uploadAvatar,
-    removeAvatar,
-    isAvatarUploading
+    currentUser, profile, fetchProfile, saveProfile, isProfileLoading,
+    uploadAvatar, removeAvatar, isAvatarUploading,
+    changeUsername,
   } = useAuth();
   const toast = useToast();
   const fileInputRef = useRef(null);
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState('profile');
+
+  // Modal states
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [isPhoneModalOpen, setIsPhoneModalOpen] = useState(false);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
 
   // Form state
   const [companyName, setCompanyName] = useState('');
   const [industry, setIndustry] = useState('');
   const [website, setWebsite] = useState('');
   const [bio, setBio] = useState('');
-  const [country, setCountry] = useState('');
-  const [state, setState] = useState('');
-  const [city, setCity] = useState('');
+  const [username, setUsername] = useState('');
+  const [location, setLocation] = useState({ country: '', state: '', city: '' });
   const [isSaving, setIsSaving] = useState(false);
-  const [completionPercentage, setCompletionPercentage] = useState(0);
+  const [isUsernameSaving, setIsUsernameSaving] = useState(false);
 
-  // Avatar state
-  const [avatarPreview, setAvatarPreview] = useState(null);
-  const [avatarError, setAvatarError] = useState(null);
-  const [isDragging, setIsDragging] = useState(false);
-
-  // Load profile on mount
   useEffect(() => {
     loadProfile();
   }, []);
 
   const loadProfile = async () => {
     const result = await fetchProfile();
-    
     if (result.success && result.data.profile) {
       const p = result.data.profile;
       setCompanyName(p.companyName || '');
       setIndustry(p.industry || '');
       setWebsite(p.website || '');
       setBio(p.bio || '');
-      setCountry(p.location?.country || '');
-      setState(p.location?.state || '');
-      setCity(p.location?.city || '');
-      
-      // Calculate completion
-      calculateCompletion(p);
+      setUsername(currentUser?.username || '');
+      setLocation(p.location || { country: '', state: '', city: '' });
     }
   };
 
-  const calculateCompletion = (p) => {
-    let score = 0;
-    if (p.companyName) score += 25;
-    if (p.industry) score += 15;
-    if (p.website) score += 15;
-    if (p.bio) score += 25;
-    if (p.location?.country) score += 10;
-    if (p.location?.city) score += 10;
-    setCompletionPercentage(score);
-  };
-
-  // Avatar handlers
-  const handleAvatarClick = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
-
-  const handleAvatarChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    setAvatarError(null);
-    const previewUrl = URL.createObjectURL(file);
-    setAvatarPreview(previewUrl);
-
-    const result = await uploadAvatar(file);
-
-    URL.revokeObjectURL(previewUrl);
-    setAvatarPreview(null);
-
-    if (result.success) {
-      toast.success('Avatar Updated', 'Your company logo has been updated.');
-    } else {
-      setAvatarError(result.error);
-      toast.error('Upload Failed', result.error);
-    }
-
-    e.target.value = '';
-  };
-
-  const handleRemoveAvatar = async () => {
-    const result = await removeAvatar();
-    
-    if (result.success) {
-      toast.success('Avatar Removed', 'Your company logo has been removed.');
-    } else {
-      toast.error('Remove Failed', result.error);
-    }
-  };
-
-  // Drag & Drop handlers
-  const handleDragEnter = (e) => {
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDragOver = (e) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = async (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-    
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      setAvatarError(null);
-      const previewUrl = URL.createObjectURL(file);
-      setAvatarPreview(previewUrl);
-
-      const result = await uploadAvatar(file);
-
-      URL.revokeObjectURL(previewUrl);
-      setAvatarPreview(null);
-
-      if (result.success) {
-        toast.success('Avatar Updated', 'Your company logo has been updated.');
-      } else {
-        setAvatarError(result.error);
-        toast.error('Upload Failed', result.error);
-      }
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!companyName.trim()) {
-      toast.warning('Company Name Required', 'Please enter your company name.');
-      return;
-    }
-
-    if (!bio.trim()) {
-      toast.warning('Bio Required', 'Please enter a company bio.');
+    if (!companyName.trim() || !bio.trim()) {
+      toast.warning('Required Fields', 'Company name and bio are required.');
       return;
     }
 
@@ -188,277 +74,205 @@ export function ClientSettingsPage() {
     }
 
     setIsSaving(true);
-
     const profileData = {
-      companyName,
-      industry,
-      website,
-      bio,
-      location: {
-        country,
-        state,
-        city
-      }
+      companyName, industry, website, bio, location,
     };
-
     const result = await saveProfile(profileData);
     setIsSaving(false);
 
     if (result.success) {
-      toast.success('Profile Saved', 'Your client profile has been updated successfully.');
-      await fetchProfile();
+      toast.success('Profile Saved', 'Your company profile has been updated.');
     } else {
       toast.error('Save Failed', result.error);
     }
   };
 
-  // Loading state
+  const handleSaveUsername = async () => {
+    if (!username.trim()) return;
+    setIsUsernameSaving(true);
+    const result = await changeUsername(username);
+    setIsUsernameSaving(false);
+    if (result.success) {
+      toast.success('Username Updated', `@${result.data.user.username}`);
+    } else {
+      toast.error('Update Failed', result.error);
+    }
+  };
+
+  const handleAvatarClick = () => fileInputRef.current?.click();
+
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const result = await uploadAvatar(file);
+    if (result.success) {
+      toast.success('Logo Updated', 'Company logo updated.');
+    } else {
+      toast.error('Upload Failed', result.error);
+    }
+    e.target.value = '';
+  };
+
+  const handleRemoveAvatar = async () => {
+    const result = await removeAvatar();
+    if (result.success) toast.success('Logo Removed', 'Company logo removed.');
+    else toast.error('Remove Failed', result.error);
+  };
+
   if (isProfileLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <Loader2 className="w-10 h-10 text-primary-600 animate-spin mx-auto mb-4" />
-          <p className="text-sm text-slate-500 dark:text-slate-400">Loading profile...</p>
-        </div>
+        <Loader2 className="w-10 h-10 text-primary-600 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-12">
-      {/* Header with completion */}
-      <div className="flex items-center justify-between">
-        <div>
-          <Badge variant="primary" size="sm" className="mb-2">Account Administration</Badge>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
-            Company & Client Settings
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Complete your company profile to attract better freelancers
-          </p>
-        </div>
-
-        {/* Completion indicator */}
-        <div className="text-right">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-50 dark:bg-primary-950/40 border border-primary-200 dark:border-primary-800">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center relative">
-              <svg className="w-10 h-10 rotate-[-90deg]">
-                <circle cx="20" cy="20" r="16" fill="none" stroke="#e2e8f0" strokeWidth="3" />
-                <circle 
-                  cx="20" cy="20" r="16" fill="none" 
-                  stroke="#4F46E5" strokeWidth="3" 
-                  strokeDasharray={`${completionPercentage * 1.005} 100.5`}
-                  strokeLinecap="round"
-                />
-              </svg>
-              <span className="absolute text-[10px] font-bold text-primary-700 dark:text-primary-400">
-                {completionPercentage}%
-              </span>
-            </div>
-            <div>
-              <p className="text-xs font-bold text-primary-700 dark:text-primary-400">Profile Completion</p>
-              <p className="text-[10px] text-primary-600 dark:text-primary-500">Add more details to improve</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Company Profile Card with Drag & Drop */}
-        <div className="p-6 sm:p-8 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-3xl shadow-soft space-y-6">
-          <h3 className="text-base font-bold text-slate-900 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-3">
-            Company Profile
-          </h3>
-
-          {/* Avatar with Drag & Drop */}
-          <div 
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-            className={`flex items-center gap-5 p-4 rounded-2xl transition-all ${
-              isDragging 
-                ? 'bg-primary-50 dark:bg-primary-950/40 border-2 border-dashed border-primary-400' 
-                : ''
-            }`}
-          >
-            <div className="relative group">
-              <Avatar 
-                src={avatarPreview || currentUser?.avatar} 
-                name={companyName || currentUser?.name} 
-                size="xl" 
-                isOnline={true} 
-              />
-              
-              <button
-                type="button"
-                onClick={handleAvatarClick}
-                disabled={isAvatarUploading}
-                className="absolute inset-0 rounded-full bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer disabled:cursor-not-allowed"
-                aria-label="Upload logo"
-              >
-                <Camera className="w-6 h-6 text-white" />
-              </button>
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleAvatarChange}
-                className="hidden"
-              />
-            </div>
-
-            <div className="space-y-2 flex-1">
-              <p className="text-sm font-bold text-slate-900 dark:text-white">
-                {currentUser?.name}
-              </p>
-              <p className="text-xs text-slate-400 flex items-center gap-1">
-                <Mail className="w-3 h-3" /> {currentUser?.email}
-              </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {isDragging ? 'Drop logo here!' : 'Drag & drop or click to upload company logo'}
-              </p>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  icon={Camera}
-                  onClick={handleAvatarClick}
-                  disabled={isAvatarUploading}
-                  isLoading={isAvatarUploading}
-                >
-                  {isAvatarUploading ? 'Uploading...' : 'Change Logo'}
-                </Button>
-
-                {currentUser?.avatar && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    icon={Trash2}
-                    onClick={handleRemoveAvatar}
-                    className="text-rose-600 hover:bg-rose-50"
-                  >
-                    Remove
+    <SettingsLayout activeTab={activeTab} onTabChange={setActiveTab}>
+      {/* ============ PROFILE TAB ============ */}
+      {activeTab === 'profile' && (
+        <div className="space-y-6">
+          {/* Logo & Username Card */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">Company Logo & Username</h3>
+            
+            <div className="flex items-center gap-5">
+              <div className="relative group">
+                <Avatar src={currentUser?.avatar} name={companyName || currentUser?.name} size="xl" isOnline={true} />
+                <button onClick={handleAvatarClick} className="absolute inset-0 rounded-full bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <Camera className="w-6 h-6 text-white" />
+                </button>
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarChange} className="hidden" />
+              </div>
+              <div className="space-y-2 flex-1">
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" icon={Camera} onClick={handleAvatarClick} isLoading={isAvatarUploading}>
+                    Change Logo
                   </Button>
-                )}
+                  {currentUser?.avatar && (
+                    <Button variant="ghost" size="sm" icon={Trash2} onClick={handleRemoveAvatar} className="text-rose-600">
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <Input
+                      label="Username"
+                      placeholder="your_username"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      icon={User}
+                    />
+                  </div>
+                  <Button variant="primary" size="sm" onClick={handleSaveUsername} isLoading={isUsernameSaving} className="mt-5">
+                    Save
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
 
-          {isAvatarUploading && <UploadProgress progress={50} status="uploading" />}
-          {avatarError && <UploadProgress progress={0} status="error" error={avatarError} />}
+          {/* Company Info Card */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">Company Information</h3>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input label="Company Name" placeholder="Tech Solutions Pvt Ltd" value={companyName} onChange={(e) => setCompanyName(e.target.value)} icon={Building} required />
+              <Input label="Industry" placeholder="Software Development" value={industry} onChange={(e) => setIndustry(e.target.value)} icon={Factory} />
+            </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="Company Name"
-              placeholder="Tech Solutions Pvt Ltd"
-              value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
-              icon={Building}
-              required
-            />
+            <Input label="Company Website" placeholder="https://techsolutions.com" value={website} onChange={(e) => setWebsite(e.target.value)} icon={Globe} />
 
-            <Input
-              label="Industry"
-              placeholder="Software Development"
-              value={industry}
-              onChange={(e) => setIndustry(e.target.value)}
-              icon={Factory}
-            />
+            <Textarea label="Company Bio" placeholder="Tell freelancers about your company..." value={bio} onChange={(e) => setBio(e.target.value)} rows={4} required />
           </div>
 
-          <Input
-            label="Company Website"
-            placeholder="https://techsolutions.com"
-            value={website}
-            onChange={(e) => setWebsite(e.target.value)}
-            icon={Globe}
-          />
+          {/* Location Card */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6">
+            <LocationSelect value={location} onChange={setLocation} />
+          </div>
 
-          <Textarea
-            label="Company Bio & Overview"
-            placeholder="Tell freelancers about your company, products, and culture..."
-            value={bio}
-            onChange={(e) => setBio(e.target.value)}
-            rows={4}
-            required
-          />
-        </div>
-
-        {/* Location Card */}
-        <div className="p-6 sm:p-8 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-3xl shadow-soft space-y-4">
-          <h3 className="text-base font-bold text-slate-900 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-3">
-            Location
-          </h3>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Input
-              label="Country"
-              placeholder="India"
-              value={country}
-              onChange={(e) => setCountry(e.target.value)}
-              icon={MapPin}
-            />
-            <Input
-              label="State"
-              placeholder="Maharashtra"
-              value={state}
-              onChange={(e) => setState(e.target.value)}
-            />
-            <Input
-              label="City"
-              placeholder="Mumbai"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-            />
+          {/* Save Button */}
+          <div className="flex justify-end">
+            <Button variant="primary" size="lg" icon={Save} onClick={handleSaveProfile} isLoading={isSaving}>
+              Save Profile
+            </Button>
           </div>
         </div>
+      )}
 
-        {/* Company Stats (Read-only) */}
-        {profile && (
-          <div className="p-6 sm:p-8 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-3xl shadow-soft">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-3 mb-4">
-              Company Statistics
-            </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl text-center">
-                <Briefcase className="w-6 h-6 text-primary-600 mx-auto mb-2" />
-                <p className="text-2xl font-extrabold text-slate-900 dark:text-white">
-                  {profile.projectsPosted || 0}
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Projects Posted</p>
+      {/* ============ SECURITY TAB ============ */}
+      {activeTab === 'security' && (
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Shield className="w-8 h-8 text-primary-600" />
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">Change Password</h3>
+                  <p className="text-xs text-slate-400">Update your account password</p>
+                </div>
               </div>
-
-              <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl text-center">
-                <Users className="w-6 h-6 text-emerald-600 mx-auto mb-2" />
-                <p className="text-2xl font-extrabold text-slate-900 dark:text-white">
-                  {profile.totalHired || 0}
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Freelancers Hired</p>
-              </div>
-
-              <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl text-center">
-                <CreditCard className="w-6 h-6 text-purple-600 mx-auto mb-2" />
-                <p className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">
-                  ${profile.totalSpent?.toLocaleString() || 0}
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Total Spent</p>
-              </div>
+              <Button variant="outline" size="sm" onClick={() => setIsPasswordModalOpen(true)}>
+                Change Password
+              </Button>
             </div>
           </div>
-        )}
-
-        <div className="flex justify-end">
-          <Button type="submit" variant="primary" size="lg" icon={Save} isLoading={isSaving} className="font-bold shadow-md">
-            Save Profile
-          </Button>
         </div>
-      </form>
-    </div>
+      )}
+
+      {/* ============ PHONE TAB ============ */}
+      {activeTab === 'phone' && (
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Phone className="w-8 h-8 text-emerald-600" />
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">Phone Number</h3>
+                  {currentUser?.isPhoneVerified ? (
+                    <p className="text-xs text-emerald-600 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Verified: +91 {currentUser?.phone?.slice(-4)}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-amber-600 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" /> Not verified
+                    </p>
+                  )}
+                </div>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setIsPhoneModalOpen(true)}>
+                {currentUser?.isPhoneVerified ? 'Change Phone' : 'Verify Phone'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============ EMAIL TAB ============ */}
+      {activeTab === 'email' && (
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Mail className="w-8 h-8 text-primary-600" />
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">Email Address</h3>
+                  <p className="text-xs text-slate-400">{currentUser?.email}</p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setIsEmailModalOpen(true)}>
+                Change Email
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modals */}
+      <ChangePasswordModal isOpen={isPasswordModalOpen} onClose={() => setIsPasswordModalOpen(false)} />
+      <PhoneVerificationModal isOpen={isPhoneModalOpen} onClose={() => setIsPhoneModalOpen(false)} isChanging={currentUser?.isPhoneVerified} />
+      <EmailChangeModal isOpen={isEmailModalOpen} onClose={() => setIsEmailModalOpen(false)} />
+    </SettingsLayout>
   );
 }
