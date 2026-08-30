@@ -27,7 +27,7 @@ import {
   verifyEmailChange,
  
 } from '../controllers/auth/otp.controller.js';
-import { googleAuth, googleCallback } from '../controllers/auth/googleAuth.controller.js';
+import { googleAuth, googleCallback, updateRole } from '../controllers/auth/googleAuth.controller.js';
 import { protect } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
@@ -61,6 +61,8 @@ router.post('/resend-reset-otp', resendResetOTP);
 router.post('/refresh-token', refreshToken);
 
 // ============ PROTECTED ROUTES ============
+// Update user role after Google OAuth
+router.patch('/google/role', protect, updateRole);
 
 // User info
 router.get('/me', protect, getMe);

@@ -7,6 +7,18 @@ import { Input } from '../../components/common/Input';
 import { Button } from '../../components/common/Button';
 import { Briefcase, Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
 
+// Google Icon Component
+function GoogleIcon() {
+  return (
+    <svg className="w-5 h-5" viewBox="0 0 24 24">
+      <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.3 9 5 12 5z"/>
+      <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.8z"/>
+      <path fill="#FBBC05" d="M5.6 14.8c-.2-.7-.4-1.5-.4-2.8s.2-2.1.4-2.8L1.9 6.3C.7 8.7 0 10.3 0 12s.7 3.3 1.9 5.7l3.7-2.9z"/>
+      <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.3-6.4-5.2L1.9 16C3.7 19.7 7.5 23 12 23z"/>
+    </svg>
+  );
+}
+
 export function LoginPage() {
   const { login, verifyLogin, resendLoginOTP } = useAuth();
   const toast = useToast();
@@ -23,6 +35,7 @@ export function LoginPage() {
   const [otp, setOtp] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   // Timer for resend OTP
   React.useEffect(() => {
@@ -31,6 +44,13 @@ export function LoginPage() {
       return () => clearTimeout(timer);
     }
   }, [resendTimer]);
+
+  // Handle Google Login
+ const handleGoogleLogin = () => {
+  setIsGoogleLoading(true);
+  const API_URL = import.meta.env.VITE_API_URL;
+  window.location.href = `${API_URL}/auth/google?intent=login`;
+};
 
   // Step 1: Handle password login
   const handleSubmit = async (e) => {
@@ -70,7 +90,6 @@ export function LoginPage() {
     if (result.success) {
       toast.success('Welcome Back!', 'Logged in successfully.');
       
-      // Navigate based on role
       const role = result.data.user.role;
       if (role === 'client') {
         navigate('/dashboard/client');
@@ -133,47 +152,74 @@ export function LoginPage() {
 
         {/* Step 1: Password Form */}
         {!showOTP ? (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <Input
-              label="Email Address"
-              type="email"
-              placeholder="you@company.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              icon={Mail}
-              required
-            />
+          <>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <Input
+                label="Email Address"
+                type="email"
+                placeholder="you@company.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                icon={Mail}
+                required
+              />
 
-            <Input
-              label="Password"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              icon={Lock}
-              required
-            />
+              <Input
+                label="Password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                icon={Lock}
+                required
+              />
 
-            <div className="flex items-center justify-between text-xs">
-              <label className="flex items-center gap-2 cursor-pointer text-slate-600 dark:text-slate-400">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="rounded border-slate-300 text-primary-600 focus:ring-primary-500 h-3.5 w-3.5"
-                />
-                <span>Remember me</span>
-              </label>
-              <Link to="/forgot-password" className="text-primary-600 dark:text-primary-400 font-semibold hover:underline">
-                Forgot password?
-              </Link>
+              <div className="flex items-center justify-between text-xs">
+                <label className="flex items-center gap-2 cursor-pointer text-slate-600 dark:text-slate-400">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="rounded border-slate-300 text-primary-600 focus:ring-primary-500 h-3.5 w-3.5"
+                  />
+                  <span>Remember me</span>
+                </label>
+                <Link to="/forgot-password" className="text-primary-600 dark:text-primary-400 font-semibold hover:underline">
+                  Forgot password?
+                </Link>
+              </div>
+
+              <Button type="submit" variant="primary" size="lg" className="w-full font-bold" isLoading={isLoading}>
+                Continue
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </form>
+
+            {/* Divider */}
+            <div className="relative flex items-center justify-center">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-200 dark:border-slate-800" />
+              </div>
+              <span className="relative px-3 bg-white dark:bg-slate-900 text-xs text-slate-400 uppercase font-semibold">
+                Or continue with
+              </span>
             </div>
 
-            <Button type="submit" variant="primary" size="lg" className="w-full font-bold" isLoading={isLoading}>
-              Continue
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
-          </form>
+            {/* Google Login Button */}
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={isGoogleLoading}
+              className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+            >
+              {isGoogleLoading ? (
+                <div className="w-5 h-5 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <GoogleIcon />
+              )}
+              Continue with Google
+            </button>
+          </>
         ) : (
           /* Step 2: OTP Form */
           <form onSubmit={handleOTPSubmit} className="space-y-4">

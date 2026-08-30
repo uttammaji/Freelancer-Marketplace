@@ -172,7 +172,7 @@ export const verifyEmailChange = async (newEmail, oldEmailOTP, newEmailOTP) => {
  * Get Google OAuth URL
  */
 export const getGoogleAuthUrl = () => {
-  return `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/auth/google`;
+  return `${import.meta.env.VITE_API_URL}/auth/google`;
 };
 
 /**
@@ -183,4 +183,9 @@ export const handleGoogleCallback = async (token) => {
     localStorage.setItem('skillhire_token', token);
   }
   return token;
+};
+
+export const updateRole = async (role) => {
+  const response = await api.patch('/auth/google/role', { role });  
+  return response.data;
 };

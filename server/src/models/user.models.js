@@ -107,9 +107,9 @@ const userSchema = new Schema({
 });
 
 // Indexes for performance
-userSchema.index({ email: 1 });
-userSchema.index({ username: 1 });
-userSchema.index({ role: 1 });
-userSchema.index({ googleId: 1 });
+// userSchema.index({ email: 1 });
+// userSchema.index({ username: 1 });
+// userSchema.index({ role: 1 });
+// userSchema.index({ googleId: 1 });
 
 export const User = mongoose.model("User", userSchema);
