@@ -1,579 +1,202 @@
 // server/src/utils/emailTemplates.js
 
-// Welcome Email Template
+// ============ SHARED STYLES ============
+const baseStyles = `
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      line-height: 1.6;
+      color: #1a1a1a;
+      background: #f4f4f5;
+      padding: 20px;
+    }
+    .container {
+      max-width: 520px;
+      margin: 0 auto;
+      background: #ffffff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .header {
+      padding: 28px 32px;
+      text-align: center;
+      color: #ffffff;
+    }
+    .content {
+      padding: 32px;
+    }
+    .footer {
+      text-align: center;
+      padding: 20px 32px;
+      color: #71717a;
+      font-size: 11px;
+      border-top: 1px solid #f4f4f5;
+    }
+    .btn {
+      display: inline-block;
+      padding: 10px 24px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+      margin: 16px 0;
+    }
+    .info-box {
+      background: #fafafa;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 16px 0;
+      text-align: center;
+    }
+    h2 { font-size: 18px; margin-bottom: 12px; }
+    p { font-size: 13px; color: #52525b; margin-bottom: 8px; }
+    .muted { color: #a1a1aa; font-size: 12px; }
+  </style>
+`;
+
+const createEmail = (headerHtml, contentHtml, headerBg = '#4f46e5') => `
+  <!DOCTYPE html>
+  <html>
+  <head>${baseStyles}</head>
+  <body>
+    <div class="container">
+      <div class="header" style="background: ${headerBg};">${headerHtml}</div>
+      <div class="content">${contentHtml}</div>
+      <div class="footer">© ${new Date().getFullYear()} SkillHire. All rights reserved.</div>
+    </div>
+  </body>
+  </html>
+`;
+
+// ============ WELCOME EMAIL ============
 export const welcomeEmailTemplate = (user) => {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          line-height: 1.6;
-          color: #333;
-          max-width: 600px;
-          margin: 0 auto;
-          padding: 20px;
-        }
-        .header {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-          padding: 30px;
-          text-align: center;
-          border-radius: 10px 10px 0 0;
-        }
-        .content {
-          padding: 30px;
-          background: #f9f9f9;
-          border: 1px solid #e0e0e0;
-          border-radius: 0 0 10px 10px;
-        }
-        .button {
-          display: inline-block;
-          padding: 12px 30px;
-          background: #667eea;
-          color: white;
-          text-decoration: none;
-          border-radius: 5px;
-          margin-top: 20px;
-        }
-        .footer {
-          text-align: center;
-          margin-top: 20px;
-          color: #666;
-          font-size: 12px;
-        }
-        .highlight {
-          color: #667eea;
-          font-weight: bold;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <h1>Welcome to Freelancer Marketplace! </h1>
+  return createEmail(
+    `<h1 style="font-size:20px; margin:0;">Welcome to SkillHire</h1>`,
+    `
+      <h2>Hi ${user.name},</h2>
+      <p>Your account has been created as a <strong>${user.role}</strong>.</p>
+      <div class="info-box">
+        <p style="margin:0; font-weight:600; color:#4f46e5;">Get started</p>
+        <a href="${process.env.CLIENT_URL}/dashboard/${user.role}" class="btn" style="background:#4f46e5; color:#fff;">Go to Dashboard</a>
       </div>
-      <div class="content">
-        <h2>Hi ${user.name},</h2>
-        <p>Thank you for joining <span class="highlight">Freelancer Marketplace</span>!</p>
-        <p>Your account has been created successfully as a <strong>${user.role}</strong>.</p>
-        
-        <h3>What's Next?</h3>
-        <ul>
-          <li>Complete your profile</li>
-          <li>Explore available projects</li>
-          <li>Connect with clients/freelancers</li>
-          <li>Start your freelancing journey</li>
-        </ul>
-        
-        <a href="${process.env.CLIENT_URL}/dashboard" class="button">Go to Dashboard</a>
-        
-        <p style="margin-top: 30px;">If you have any questions, feel free to contact our support team.</p>
-      </div>
-      <div class="footer">
-        <p>© 2024 Freelancer Marketplace. All rights reserved.</p>
-      </div>
-    </body>
-    </html>
-  `;
+      <p class="muted">Complete your profile to increase visibility.</p>
+    `
+  );
 };
 
-// Password Reset Email Template
-export const passwordResetTemplate = (user, resetLink) => {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          line-height: 1.6;
-          color: #333;
-          max-width: 600px;
-          margin: 0 auto;
-          padding: 20px;
-        }
-        .header {
-          background: #ff6b6b;
-          color: white;
-          padding: 30px;
-          text-align: center;
-          border-radius: 10px 10px 0 0;
-        }
-        .content {
-          padding: 30px;
-          background: #f9f9f9;
-          border: 1px solid #e0e0e0;
-          border-radius: 0 0 10px 10px;
-        }
-        .button {
-          display: inline-block;
-          padding: 12px 30px;
-          background: #ff6b6b;
-          color: white;
-          text-decoration: none;
-          border-radius: 5px;
-          margin-top: 20px;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <h1>Password Reset Request</h1>
-      </div>
-      <div class="content">
-        <h2>Hi ${user.name},</h2>
-        <p>We received a request to reset your password.</p>
-        <p>Click the button below to reset your password:</p>
-        <a href="${resetLink}" class="button">Reset Password</a>
-        <p style="margin-top: 20px;">This link will expire in 30 minutes.</p>
-        <p>If you didn't request this, please ignore this email.</p>
-      </div>
-    </body>
-    </html>
-  `;
-};
-
-// Project Notification Template
-export const projectNotificationTemplate = (user, project, type) => {
-  const messages = {
-    new_proposal: `A new proposal has been submitted for your project`,
-    proposal_accepted: `Your proposal has been accepted`,
-    project_completed: `Your project has been completed`,
-  };
-
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          line-height: 1.6;
-          color: #333;
-          max-width: 600px;
-          margin: 0 auto;
-          padding: 20px;
-        }
-        .content {
-          padding: 30px;
-          background: #f9f9f9;
-          border: 1px solid #e0e0e0;
-          border-radius: 10px;
-        }
-        .notification {
-          background: white;
-          padding: 20px;
-          border-radius: 5px;
-          border-left: 4px solid #667eea;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="content">
-        <h2>Hi ${user.name},</h2>
-        <div class="notification">
-          <p>${messages[type]}</p>
-          <h3>Project: ${project.title}</h3>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-
-  
-};
-
-
-// OTP Email Template
+// ============ OTP EMAIL ============
 export const otpEmailTemplate = (otp, purpose) => {
   const purposeText = {
     registration: 'complete your registration',
     login: 'login to your account',
-    password_reset: 'reset your password'
+    password_reset: 'reset your password',
+    email_change_old: 'verify your current email',
+    email_change_new: 'verify your new email',
   };
 
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          max-width: 600px;
-          margin: 0 auto;
-          padding: 20px;
-          background: #f5f5f5;
-        }
-        .container {
-          background: white;
-          padding: 40px;
-          border-radius: 15px;
-          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .header {
-          text-align: center;
-          color: #667eea;
-          font-size: 24px;
-          font-weight: bold;
-          margin-bottom: 30px;
-        }
-        .otp-box {
-          background: #667eea;
-          color: white;
-          font-size: 36px;
-          font-weight: bold;
-          letter-spacing: 10px;
-          text-align: center;
-          padding: 20px;
-          border-radius: 10px;
-          margin: 30px 0;
-        }
-        .info {
-          color: #666;
-          text-align: center;
-          margin-top: 20px;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">Freelancer Marketplace</div>
-        <p>Hello,</p>
-        <p>Use the following OTP to ${purposeText[purpose] || 'complete your verification'}:</p>
-        <div class="otp-box">${otp}</div>
-        <p class="info">This OTP will expire in 5 minutes.</p>
-        <p class="info">If you didn't request this, please ignore this email.</p>
+  return createEmail(
+    `<h1 style="font-size:20px; margin:0;">Verification Code</h1>`,
+    `
+      <p style="text-align:center;">Use this code to ${purposeText[purpose] || 'verify'}:</p>
+      <div class="info-box">
+        <span style="font-size:32px; font-weight:700; letter-spacing:8px; color:#4f46e5;">${otp}</span>
       </div>
-    </body>
-    </html>
-  `;
+      <p class="muted" style="text-align:center;">Expires in 5 minutes.</p>
+    `,
+    '#4f46e5'
+  );
 };
 
-// Password Reset Success Template
+// ============ PASSWORD RESET SUCCESS ============
 export const passwordResetSuccessTemplate = (user) => {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          line-height: 1.6;
-          color: #333;
-          max-width: 600px;
-          margin: 0 auto;
-          padding: 20px;
-        }
-        .header {
-          background: #28a745;
-          color: white;
-          padding: 30px;
-          text-align: center;
-          border-radius: 10px 10px 0 0;
-        }
-        .content {
-          padding: 30px;
-          background: #f9f9f9;
-          border: 1px solid #e0e0e0;
-          border-radius: 0 0 10px 10px;
-        }
-        .footer {
-          text-align: center;
-          margin-top: 20px;
-          color: #666;
-          font-size: 12px;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <h1>Password Reset Successful</h1>
-      </div>
-      <div class="content">
-        <h2>Hi ${user.name},</h2>
-        <p>Your password has been successfully reset.</p>
-        <p>You can now login with your new password.</p>
-        <p>If you did not perform this action, please contact support immediately.</p>
-      </div>
-      <div class="footer">
-        <p>© 2024 Freelancer Marketplace. All rights reserved.</p>
-      </div>
-    </body>
-    </html>
-  `;
+  return createEmail(
+    `<h1 style="font-size:20px; margin:0;">Password Reset</h1>`,
+    `
+      <h2>Hi ${user.name},</h2>
+      <p>Your password has been changed successfully.</p>
+      <p class="muted">If you didn't do this, contact support immediately.</p>
+    `,
+    '#10b981'
+  );
 };
 
-
-// ============ PASSWORD CHANGE TEMPLATE ============
-
+// ============ PASSWORD CHANGE ============
 export const passwordChangeTemplate = (user) => {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          max-width: 600px;
-          margin: 0 auto;
-          padding: 20px;
-          background: #f5f5f5;
-        }
-        .container {
-          background: white;
-          padding: 40px;
-          border-radius: 15px;
-          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .header {
-          text-align: center;
-          color: #f59e0b;
-          font-size: 24px;
-          font-weight: bold;
-          margin-bottom: 30px;
-        }
-        .warning {
-          background: #fef3c7;
-          border-left: 4px solid #f59e0b;
-          padding: 15px;
-          border-radius: 8px;
-          margin: 20px 0;
-        }
-        .info {
-          color: #666;
-          text-align: center;
-          margin-top: 20px;
-          font-size: 12px;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">Password Changed</div>
-        <p>Hi ${user.name},</p>
-        <p>Your password was changed successfully.</p>
-        <div class="warning">
-          <strong>Security Alert:</strong>
-          <p>If you did not make this change, please contact support immediately and reset your password.</p>
-        </div>
-        <p class="info">This change was made on: ${new Date().toLocaleString()}</p>
-        <p class="info">© ${new Date().getFullYear()} Freelancer Marketplace</p>
-      </div>
-    </body>
-    </html>
-  `;
+  return createEmail(
+    `<h1 style="font-size:20px; margin:0;">Password Changed</h1>`,
+    `
+      <h2>Hi ${user.name},</h2>
+      <p>Your password was changed successfully.</p>
+      <p class="muted">If this wasn't you, reset your password immediately.</p>
+    `,
+    '#f59e0b'
+  );
 };
 
-// ============ EMAIL CHANGE TEMPLATE ============
-
+// ============ EMAIL CHANGE ============
 export const emailChangeTemplate = (user, newEmail) => {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          max-width: 600px;
-          margin: 0 auto;
-          padding: 20px;
-          background: #f5f5f5;
-        }
-        .container {
-          background: white;
-          padding: 40px;
-          border-radius: 15px;
-          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .header {
-          text-align: center;
-          color: #667eea;
-          font-size: 24px;
-          font-weight: bold;
-          margin-bottom: 30px;
-        }
-        .email-box {
-          background: #eef2ff;
-          border: 2px dashed #667eea;
-          border-radius: 10px;
-          padding: 15px;
-          text-align: center;
-          margin: 20px 0;
-        }
-        .email-box .old {
-          color: #ef4444;
-          text-decoration: line-through;
-          font-size: 14px;
-        }
-        .email-box .new {
-          color: #10b981;
-          font-size: 16px;
-          font-weight: bold;
-        }
-        .arrow {
-          text-align: center;
-          font-size: 20px;
-          color: #667eea;
-          margin: 10px 0;
-        }
-        .warning {
-          background: #fef3c7;
-          border-left: 4px solid #f59e0b;
-          padding: 15px;
-          border-radius: 8px;
-          margin-top: 20px;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">Email Change Notification</div>
-        <p>Hi ${user.name},</p>
-        <p>Your email address has been changed successfully.</p>
-        
-        <div class="email-box">
-          <p class="old">${user.email}</p>
-          <div class="arrow">↓</div>
-          <p class="new">${newEmail}</p>
-        </div>
-
-        <div class="warning">
-          <strong>Important:</strong>
-          <p>If you did not request this change, please contact support immediately.</p>
-        </div>
-        
-        <p style="margin-top: 20px;">This change was made on: ${new Date().toLocaleString()}</p>
+  return createEmail(
+    `<h1 style="font-size:20px; margin:0;">Email Updated</h1>`,
+    `
+      <h2>Hi ${user.name},</h2>
+      <p>Your email has been changed:</p>
+      <div class="info-box">
+        <p style="margin:0; color:#ef4444; text-decoration:line-through;">${user.email}</p>
+        <p style="margin:4px 0;">↓</p>
+        <p style="margin:0; font-weight:600; color:#10b981;">${newEmail}</p>
       </div>
-    </body>
-    </html>
-  `;
+    `,
+    '#4f46e5'
+  );
 };
 
-// ============ ACCOUNT LOCKED TEMPLATE ============
-
+// ============ ACCOUNT LOCKED ============
 export const accountLockedTemplate = (user, lockDuration) => {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          max-width: 600px;
-          margin: 0 auto;
-          padding: 20px;
-          background: #f5f5f5;
-        }
-        .container {
-          background: white;
-          padding: 40px;
-          border-radius: 15px;
-          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .header {
-          text-align: center;
-          color: #ef4444;
-          font-size: 24px;
-          font-weight: bold;
-          margin-bottom: 30px;
-        }
-        .lock-icon {
-          text-align: center;
-          font-size: 48px;
-          margin-bottom: 20px;
-        }
-        .info {
-          background: #fee2e2;
-          border-left: 4px solid #ef4444;
-          padding: 15px;
-          border-radius: 8px;
-          margin: 20px 0;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="lock-icon">🔒</div>
-        <div class="header">Account Temporarily Locked</div>
-        <p>Hi ${user.name},</p>
-        <p>Your account has been locked due to multiple failed login attempts.</p>
-        
-        <div class="info">
-          <strong>Lock Details:</strong>
-          <p>Duration: ${lockDuration} minutes</p>
-          <p>Reason: Too many failed password attempts</p>
-        </div>
-
-        <p>Your account will be automatically unlocked after the lock period.</p>
-        <p>If this wasn't you, we recommend changing your password immediately.</p>
+  return createEmail(
+    `<h1 style="font-size:20px; margin:0;">Account Locked</h1>`,
+    `
+      <h2>Hi ${user.name},</h2>
+      <p>Your account is temporarily locked.</p>
+      <div class="info-box">
+        <p style="margin:0; font-weight:600;">Locked for ${lockDuration} minutes</p>
       </div>
-    </body>
-    </html>
-  `;
+      <p class="muted">Too many failed login attempts.</p>
+    `,
+    '#ef4444'
+  );
 };
 
-// ============ PHONE VERIFIED TEMPLATE ============
-
+// ============ PHONE VERIFIED ============
 export const phoneVerifiedTemplate = (user, phone) => {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          max-width: 600px;
-          margin: 0 auto;
-          padding: 20px;
-          background: #f5f5f5;
-        }
-        .container {
-          background: white;
-          padding: 40px;
-          border-radius: 15px;
-          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .header {
-          text-align: center;
-          color: #10b981;
-          font-size: 24px;
-          font-weight: bold;
-          margin-bottom: 30px;
-        }
-        .success-icon {
-          text-align: center;
-          font-size: 48px;
-          margin-bottom: 20px;
-        }
-        .phone-box {
-          background: #d1fae5;
-          border-radius: 10px;
-          padding: 15px;
-          text-align: center;
-          margin: 20px 0;
-        }
-        .phone {
-          font-size: 18px;
-          font-weight: bold;
-          color: #059669;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="success-icon">✅</div>
-        <div class="header">Phone Verified</div>
-        <p>Hi ${user.name},</p>
-        <p>Your phone number has been verified successfully.</p>
-        
-        <div class="phone-box">
-          <p class="phone">${phone}</p>
-        </div>
-
-        <p>Your account is now more secure.</p>
+  return createEmail(
+    `<h1 style="font-size:20px; margin:0;">Phone Verified</h1>`,
+    `
+      <h2>Hi ${user.name},</h2>
+      <p>Your phone number has been verified:</p>
+      <div class="info-box">
+        <p style="margin:0; font-weight:600; color:#10b981;">${phone}</p>
       </div>
-    </body>
-    </html>
-  `;
+    `,
+    '#10b981'
+  );
+};
+
+// ============ PROJECT NOTIFICATION ============
+export const projectNotificationTemplate = (user, project, type) => {
+  const messages = {
+    new_proposal: 'New proposal received',
+    proposal_accepted: 'Proposal accepted',
+    project_completed: 'Project completed',
+  };
+
+  return createEmail(
+    `<h1 style="font-size:20px; margin:0;">${messages[type]}</h1>`,
+    `
+      <h2>${project.title}</h2>
+      <p class="muted">${new Date().toLocaleDateString()}</p>
+    `,
+    '#4f46e5'
+  );
 };

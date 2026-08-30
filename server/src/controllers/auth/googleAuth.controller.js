@@ -251,11 +251,7 @@ export const googleCallback = asyncHandler(async (req, res, next) => {
     // Generate tokens
     const token = generateAndSetTokens(user, res);
 
-    // Redirect to frontend
-    const redirectParams = new URLSearchParams({ token });
-    if (isNewUser) {
-      redirectParams.append('isNewUser', 'true');
-    }
+    res.redirect(`${FRONTEND_URL}/auth/google/callback?token=${token}`);
 
     res.redirect(`${FRONTEND_URL}/auth/google/callback?${redirectParams.toString()}`);
   } catch (error) {

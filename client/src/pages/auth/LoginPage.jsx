@@ -1,11 +1,11 @@
 // client/src/pages/auth/LoginPage.jsx
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { Input } from '../../components/common/Input';
 import { Button } from '../../components/common/Button';
-import { Briefcase, Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Briefcase, Lock, Mail, ArrowRight, ShieldCheck, UserPlus, X } from 'lucide-react';
 
 // Google Icon Component
 function GoogleIcon() {
@@ -23,6 +23,7 @@ export function LoginPage() {
   const { login, verifyLogin, resendLoginOTP } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   // Step 1: Email + Password
   const [email, setEmail] = useState('');
@@ -37,6 +38,27 @@ export function LoginPage() {
   const [resendTimer, setResendTimer] = useState(0);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
+  // Account not found modal
+  const [showAccountNotFound, setShowAccountNotFound] = useState(false);
+
+  // Check for Google error on mount
+  useEffect(() => {
+    const error = searchParams.get('error');
+    
+    if (error === 'account_not_found') {
+      setShowAccountNotFound(true);
+    } else if (error === 'account_blocked') {
+      toast.error('Account Blocked', 'Your account has been blocked.');
+    } else if (error === 'google_auth_failed') {
+      toast.error('Login Failed', 'Google authentication failed.');
+    }
+    
+    // Clear error from URL
+    if (error) {
+      navigate('/login', { replace: true });
+    }
+  }, [searchParams]);
+
   // Timer for resend OTP
   React.useEffect(() => {
     if (resendTimer > 0) {
@@ -46,11 +68,11 @@ export function LoginPage() {
   }, [resendTimer]);
 
   // Handle Google Login
- const handleGoogleLogin = () => {
-  setIsGoogleLoading(true);
-  const API_URL = import.meta.env.VITE_API_URL;
-  window.location.href = `${API_URL}/auth/google?intent=login`;
-};
+  const handleGoogleLogin = () => {
+    setIsGoogleLoading(true);
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+    window.location.href = `${API_URL}/auth/google?intent=login`;
+  };
 
   // Step 1: Handle password login
   const handleSubmit = async (e) => {
@@ -270,6 +292,40 @@ export function LoginPage() {
           </Link>
         </p>
       </div>
+
+      {/* Account Not Found Modal */}
+      {showAccountNotFound && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 max-w-sm w-full shadow-soft-lg space-y-5">
+            <div className="text-center space-y-2">
+              <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center mx-auto">
+                <UserPlus className="w-7 h-7 text-amber-600" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                No Account Found
+              </h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                This Google account is not registered. Please create an account first.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowAccountNotFound(false)}
+              >
+                Cancel
+              </Button>
+              <Link to="/register" className="flex-1">
+                <Button variant="primary" className="w-full">
+                  Register Now
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

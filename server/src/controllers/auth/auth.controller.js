@@ -4,9 +4,15 @@ import { User } from '../../models/user.models.js';
 import { generateToken, generateRefreshToken } from '../../utils/generateToken.js';
 import { AppError, asyncHandler } from '../../middleware/error.middleware.js';
 import { sendEmail } from '../../utils/sendEmail.js';
-import { passwordResetSuccessTemplate, passwordChangeTemplate, emailChangeTemplate } from '../../utils/emailTemplates.js';
+import { 
+  passwordResetSuccessTemplate, 
+  passwordChangeTemplate, 
+  emailChangeTemplate,
+  phoneVerifiedTemplate
+} from '../../utils/emailTemplates.js';
 import { hashPassword, comparePassword } from '../../utils/password.utils.js';
 import { createOTP, verifyOTP, checkOTPRateLimit } from '../../utils/otp.utils.js';
+import { createPhoneOTP } from '../../utils/phone.utils.js'; 
 import redis from '../../config/redis.config.js';
 
 // ============ REGISTRATION ============
