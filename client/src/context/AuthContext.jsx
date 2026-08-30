@@ -11,6 +11,7 @@ import * as authService from "../services/auth.service";
 import * as profileService from "../services/profile.service";
 import * as uploadService from "../services/upload.service";
 import { compressImage, validateImage } from "../utils/imageCompression";
+import { connectSocket, disconnectSocket } from "../services/socket.service";
 
 const AuthContext = createContext();
 
@@ -41,6 +42,7 @@ export function AuthProvider({ children }) {
     }
     setIsLoading(false);
   }, []);
+  
 
   useEffect(() => {
     if (token) {
@@ -49,6 +51,16 @@ export function AuthProvider({ children }) {
       localStorage.removeItem("skillhire_token");
     }
   }, [token]);
+
+  // Connect socket when token exists
+useEffect(() => {
+  if (token) {
+    connectSocket(token);
+  }
+  return () => {
+    disconnectSocket();
+  };
+}, [token]);
 
   useEffect(() => {
     if (currentUser) {
@@ -165,6 +177,7 @@ export function AuthProvider({ children }) {
     } catch (error) {
       console.error("Logout API error:", error);
     } finally {
+      disconnectSocket();
       setToken(null);
       setCurrentUser(null);
       setProfile(null);

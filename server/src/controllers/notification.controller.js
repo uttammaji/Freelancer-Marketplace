@@ -1,41 +1,34 @@
 // server/src/controllers/notification.controller.js
 import { Notification } from '../models/notification.model.js';
 import { AppError, asyncHandler } from '../middleware/error.middleware.js';
+import { getIO } from '../sockets/socket.js';
 
 // @desc    Get current user's notifications
 // @route   GET /api/notifications
 // @access  Private
 export const getMyNotifications = asyncHandler(async (req, res, next) => {
-  // Pagination
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 20;
   const skip = (page - 1) * limit;
 
-  // Build query
   let query = { recipientId: req.user.id };
 
-  // Filter by read status
   if (req.query.read === 'true') {
     query.isRead = true;
   } else if (req.query.read === 'false') {
     query.isRead = false;
   }
 
-  // Filter by type
   if (req.query.type) {
     query.type = req.query.type;
   }
 
-  // Get notifications
   const notifications = await Notification.find(query)
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit);
 
-  // Get total count
   const total = await Notification.countDocuments(query);
-
-  // Get unread count
   const unreadCount = await Notification.countDocuments({
     recipientId: req.user.id,
     isRead: false
@@ -77,7 +70,6 @@ export const markAsRead = asyncHandler(async (req, res, next) => {
     throw new AppError('Notification not found', 404);
   }
 
-  // Check if user is the recipient
   if (notification.recipientId.toString() !== req.user.id) {
     throw new AppError('Not authorized to update this notification', 403);
   }
@@ -118,7 +110,6 @@ export const deleteNotification = asyncHandler(async (req, res, next) => {
     throw new AppError('Notification not found', 404);
   }
 
-  // Check if user is the recipient
   if (notification.recipientId.toString() !== req.user.id) {
     throw new AppError('Not authorized to delete this notification', 403);
   }
@@ -153,7 +144,6 @@ export const getNotificationById = asyncHandler(async (req, res, next) => {
     throw new AppError('Notification not found', 404);
   }
 
-  // Check if user is the recipient
   if (notification.recipientId.toString() !== req.user.id) {
     throw new AppError('Not authorized to view this notification', 403);
   }
@@ -164,7 +154,7 @@ export const getNotificationById = asyncHandler(async (req, res, next) => {
   });
 });
 
-// Helper function to create notification (internal use)
+// Helper function to create notification (with socket emit)
 export const createNotification = async ({
   recipientId,
   senderId,
@@ -181,6 +171,19 @@ export const createNotification = async ({
       title,
       message,
       link
+    });
+
+    //Emit socket notification to recipient
+    const io = getIO();
+    io.to(`user:${recipientId}`).emit('receive_notification', {
+      notification: {
+        _id: notification._id,
+        type: notification.type,
+        title: notification.title,
+        message: notification.message,
+        link: notification.link,
+        createdAt: notification.createdAt,
+      },
     });
 
     return notification;

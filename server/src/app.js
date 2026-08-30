@@ -85,6 +85,8 @@ import portfolioRoutes from './routes/portfolio.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import messageRoutes from './routes/message.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
+import disputeRoutes from './routes/dispute.routes.js';
+import transactionRoutes from './routes/transaction.routes.js';
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -99,6 +101,8 @@ app.use('/api/portfolios', portfolioRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/disputes', disputeRoutes);
+app.use('/api/transactions', transactionRoutes);
 
 // ============ ERROR HANDLING ============
 

@@ -2,6 +2,7 @@
 import express from 'express';
 import {
   sendMessage,
+  findOrCreateConversation,
   getConversationMessages,
   getMyConversations,
   getConversationInfo,
@@ -15,6 +16,9 @@ const router = express.Router();
 
 // All message routes require authentication
 router.use(protect);
+
+// Find or create conversation
+router.post('/conversation', findOrCreateConversation);
 
 // Send message
 router.post('/', sendMessage);

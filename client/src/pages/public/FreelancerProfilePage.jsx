@@ -1,9 +1,10 @@
 // client/src/pages/public/FreelancerProfilePage.jsx
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { getProfileByUserId } from '../../services/profile.service';
+import { findOrCreateConversation } from '../../services/message.service';
 import { Avatar } from '../../components/common/Avatar';
 import { Badge } from '../../components/common/Badge';
 import { Rating } from '../../components/common/Rating';
@@ -32,12 +33,19 @@ export function FreelancerProfilePage() {
   const { id } = useParams();
   const { currentUser, role } = useAuth();
   const toast = useToast();
+  const navigate = useNavigate();
 
   const [freelancer, setFreelancer] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('about');
   const [isHireModalOpen, setIsHireModalOpen] = useState(false);
+  const [isMessaging, setIsMessaging] = useState(false);
+
+  // ✅ Check if viewing own profile (by ID or email)
+  const isOwnProfile = 
+    currentUser?.id === freelancer?.id ||
+    currentUser?.email === freelancer?.email;
 
   // Fetch profile from backend
   useEffect(() => {
@@ -51,7 +59,6 @@ export function FreelancerProfilePage() {
         if (response.success && response.profile) {
           const p = response.profile;
           
-          // Map backend profile to frontend format
           setFreelancer({
             id: p.userId?._id || p.userId,
             name: p.userId?.name || 'Freelancer',
@@ -109,6 +116,42 @@ export function FreelancerProfilePage() {
     }
   };
 
+  // ✅ Handle message button click
+  const handleMessageClick = async () => {
+    if (!currentUser) {
+      toast.warning('Login Required', 'Please login to message freelancers.');
+      navigate('/login');
+      return;
+    }
+
+    if (isOwnProfile) {
+      toast.warning('Cannot Message Yourself', 'This is your own profile.');
+      return;
+    }
+
+    if (role === 'freelancer') {
+      toast.warning('Not Allowed', 'Freelancers cannot message other freelancers.');
+      return;
+    }
+
+    setIsMessaging(true);
+    try {
+      const response = await findOrCreateConversation(freelancer.id);
+      
+      if (response.success && response.conversation) {
+        const conversationId = response.conversation._id;
+        
+        // ✅ Use window.location.href for full page reload
+        window.location.href = `/messages?conversation=${conversationId}`;
+      }
+    } catch (error) {
+      console.error('Failed to start conversation:', error);
+      toast.error('Failed', error.response?.data?.message || 'Could not start conversation.');
+    } finally {
+      setIsMessaging(false);
+    }
+  };
+
   // Loading state
   if (isLoading) {
     return (
@@ -160,9 +203,7 @@ export function FreelancerProfilePage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-8">
-      {/* Profile Hero Header Card */}
       <div className="relative bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-3xl overflow-hidden shadow-soft">
-        {/* Cover banner */}
         <div className="h-36 sm:h-48 w-full bg-gradient-to-r from-primary-900 via-indigo-900 to-slate-900 relative">
           <div className="absolute top-4 right-4 flex items-center gap-2">
             <button
@@ -175,10 +216,8 @@ export function FreelancerProfilePage() {
           </div>
         </div>
 
-        {/* Profile Info Header */}
         <div className="px-6 sm:px-8 pb-8 pt-0 relative">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 -mt-16 sm:-mt-20">
-            {/* Avatar & Title */}
             <div className="flex flex-col sm:flex-row items-center sm:items-end gap-5 text-center sm:text-left">
               <Avatar
                 src={freelancer.avatar}
@@ -196,6 +235,9 @@ export function FreelancerProfilePage() {
                   {freelancer.isVerified && (
                     <Badge variant="primary" size="sm">Verified Pro</Badge>
                   )}
+                  {isOwnProfile && (
+                    <Badge variant="success" size="sm">This is You</Badge>
+                  )}
                 </div>
                 <p className="text-sm sm:text-base font-semibold text-slate-600 dark:text-slate-300">
                   {freelancer.title}
@@ -211,7 +253,6 @@ export function FreelancerProfilePage() {
               </div>
             </div>
 
-            {/* Actions & Rate */}
             <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
               <div className="text-center sm:text-right px-4 py-2 bg-slate-50 dark:bg-slate-850/60 rounded-2xl border border-slate-200/60 dark:border-slate-800 w-full sm:w-auto">
                 <span className="text-xs text-slate-400 block">Hourly Rate</span>
@@ -220,30 +261,32 @@ export function FreelancerProfilePage() {
                 </span>
               </div>
 
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                {(role === 'client' || !currentUser) && (
-                  <>
-                    <Link to="/messages" className="flex-1 sm:flex-initial">
-                      <Button variant="outline" size="lg" icon={MessageSquare} className="w-full">
-                        Message
-                      </Button>
-                    </Link>
-                    <Button
-                      variant="primary"
-                      size="lg"
-                      icon={Zap}
-                      className="flex-1 sm:flex-initial shadow-md font-bold"
-                      onClick={() => setIsHireModalOpen(true)}
-                    >
-                      Hire Me
-                    </Button>
-                  </>
-                )}
-              </div>
+              {!isOwnProfile && (role === 'client' || !currentUser) && (
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Button 
+                    variant="outline" 
+                    size="lg" 
+                    icon={MessageSquare} 
+                    className="flex-1 sm:flex-initial"
+                    onClick={handleMessageClick}
+                    isLoading={isMessaging}
+                  >
+                    Message
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    icon={Zap}
+                    className="flex-1 sm:flex-initial shadow-md font-bold"
+                    onClick={() => setIsHireModalOpen(true)}
+                  >
+                    Hire Me
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Stats Ribbon */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-8 pt-6 border-t border-slate-100 dark:border-slate-800/80 text-center sm:text-left">
             <div className="p-3 bg-slate-50 dark:bg-slate-850/40 rounded-xl">
               <span className="text-[11px] text-slate-400 uppercase tracking-wider block font-bold">Total Earnings</span>
@@ -251,21 +294,18 @@ export function FreelancerProfilePage() {
                 {formatCurrency(freelancer.totalEarned)}
               </span>
             </div>
-
             <div className="p-3 bg-slate-50 dark:bg-slate-850/40 rounded-xl">
               <span className="text-[11px] text-slate-400 uppercase tracking-wider block font-bold">Jobs Completed</span>
               <span className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white">
                 {freelancer.jobsCompleted} Contracts
               </span>
             </div>
-
             <div className="p-3 bg-slate-50 dark:bg-slate-850/40 rounded-xl">
               <span className="text-[11px] text-slate-400 uppercase tracking-wider block font-bold">Experience</span>
               <span className="text-lg sm:text-xl font-extrabold text-emerald-600 dark:text-emerald-400">
                 {freelancer.experienceYears} Years
               </span>
             </div>
-
             <div className="p-3 bg-slate-50 dark:bg-slate-850/40 rounded-xl">
               <span className="text-[11px] text-slate-400 uppercase tracking-wider block font-bold">Hours/Week</span>
               <span className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white">
@@ -276,10 +316,8 @@ export function FreelancerProfilePage() {
         </div>
       </div>
 
-      {/* Profile Tabs Navigation */}
       <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
 
-      {/* Tab 1: Overview & Bio */}
       {activeTab === 'about' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           <div className="lg:col-span-2 space-y-6">
@@ -322,7 +360,6 @@ export function FreelancerProfilePage() {
         </div>
       )}
 
-      {/* Tab 2: Skills */}
       {activeTab === 'skills' && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-6 shadow-soft space-y-4">
           <h3 className="text-base font-bold text-slate-900 dark:text-white">Skills & Expertise</h3>
@@ -343,7 +380,6 @@ export function FreelancerProfilePage() {
         </div>
       )}
 
-      {/* Tab 3: Education */}
       {activeTab === 'education' && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-6 shadow-soft space-y-4">
           <h3 className="text-base font-bold text-slate-900 dark:text-white">Education</h3>

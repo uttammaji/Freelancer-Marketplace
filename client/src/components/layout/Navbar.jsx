@@ -1,9 +1,11 @@
 // client/src/components/layout/Navbar.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { useMarketplace } from '../../context/MarketplaceContext';
+import { onReceiveNotification } from '../../services/socket.service';
+import { getMyNotifications } from '../../services/notification.service';
+import { getMyConversations } from '../../services/message.service';
 import { Button } from '../common/Button';
 import { Avatar } from '../common/Avatar';
 import { Badge } from '../common/Badge';
@@ -26,7 +28,6 @@ import {
 export function Navbar({ onMobileMenuToggle }) {
   const { currentUser, role, isAuthenticated, isLoading, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
-  const { notifications, conversations } = useMarketplace();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -34,9 +35,59 @@ export function Navbar({ onMobileMenuToggle }) {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  
+  // data states
+  const [notifications, setNotifications] = useState([]);
+  const [unreadNotifs, setUnreadNotifs] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
 
-  const unreadNotifs = notifications.filter(n => !n.isRead).length;
-  const unreadMessages = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+  // Fetch real notifications from backend
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const response = await getMyNotifications({ limit: 5 });
+      if (response.success) {
+        setNotifications(response.notifications);
+        setUnreadNotifs(response.unreadCount);
+      }
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
+    }
+  }, []);
+
+  // Fetch real unread messages count
+  const fetchUnreadMessages = useCallback(async () => {
+    try {
+      const response = await getMyConversations();
+      if (response.success) {
+        const totalUnread = response.conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+        setUnreadMessages(totalUnread);
+      }
+    } catch (error) {
+      console.error('Failed to fetch conversations:', error);
+    }
+  }, []);
+
+  // Fetch on mount and when auth changes
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchNotifications();
+      fetchUnreadMessages();
+    }
+  }, [isAuthenticated, fetchNotifications, fetchUnreadMessages]);
+
+  // Listen for real-time notifications via Socket
+  useEffect(() => {
+    const unsubscribe = onReceiveNotification((data) => {
+      if (data?.notification) {
+        setNotifications(prev => [data.notification, ...prev].slice(0, 5));
+        setUnreadNotifs(prev => prev + 1);
+      }
+    });
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, []);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -75,7 +126,6 @@ export function Navbar({ onMobileMenuToggle }) {
               </span>
             </Link>
 
-            {/* Desktop Navigation Links */}
             <nav className="hidden md:flex items-center gap-1">
               <Link
                 to="/projects"
@@ -110,7 +160,7 @@ export function Navbar({ onMobileMenuToggle }) {
             </nav>
           </div>
 
-          {/* Center: Search Bar (Desktop) */}
+          {/* Search */}
           <div className="hidden lg:flex flex-1 max-w-xs xl:max-w-sm">
             <form onSubmit={handleSearchSubmit} className="w-full relative">
               <input
@@ -124,9 +174,8 @@ export function Navbar({ onMobileMenuToggle }) {
             </form>
           </div>
 
-          {/* Right: Actions, Theme, Auth, Profile */}
+          {/* Right Actions */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
               aria-label="Toggle dark mode"
@@ -136,13 +185,12 @@ export function Navbar({ onMobileMenuToggle }) {
             </button>
 
             {isLoading ? (
-              /* Loading state */
               <div className="flex items-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
               </div>
             ) : isAuthenticated ? (
               <>
-                {/* Messages icon */}
+                {/* Messages */}
                 <Link
                   to="/messages"
                   aria-label="Messages"
@@ -150,11 +198,13 @@ export function Navbar({ onMobileMenuToggle }) {
                 >
                   <MessageSquare className="w-4 h-4" />
                   {unreadMessages > 0 && (
-                    <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary-600 rounded-full ring-2 ring-white dark:ring-slate-900" />
+                    <span className="absolute top-1 right-1 px-1 min-w-[16px] h-4 bg-primary-600 text-[9px] font-bold text-white rounded-full flex items-center justify-center ring-2 ring-white dark:ring-slate-900">
+                      {unreadMessages}
+                    </span>
                   )}
                 </Link>
 
-                {/* Notifications dropdown trigger */}
+                {/* Notifications */}
                 <div className="relative">
                   <button
                     onClick={() => setIsNotifOpen(!isNotifOpen)}
@@ -169,64 +219,57 @@ export function Navbar({ onMobileMenuToggle }) {
                     )}
                   </button>
 
-                  {/* Notification Popover */}
                   {isNotifOpen && (
-                    <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-soft-lg p-3 z-50 animate-in fade-in slide-in-from-top-2">
+                    <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-soft-lg p-3 z-50">
                       <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 px-2">
-                        <span className="text-xs font-bold text-slate-900 dark:text-white">Notifications</span>
-                        <Link
-                          to="/notifications"
-                          onClick={() => setIsNotifOpen(false)}
-                          className="text-[11px] font-semibold text-primary-600 dark:text-primary-400 hover:underline"
-                        >
-                          View All ({notifications.length})
+                        <span className="text-xs font-bold">Notifications</span>
+                        <Link to="/notifications" onClick={() => setIsNotifOpen(false)} className="text-[11px] font-semibold text-primary-600 hover:underline">
+                          View All
                         </Link>
                       </div>
                       <div className="max-h-72 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 my-1">
-                        {notifications.slice(0, 4).map((n) => (
-                          <Link
-                            key={n.id}
-                            to={n.link || '/notifications'}
-                            onClick={() => setIsNotifOpen(false)}
-                            className={`flex items-start gap-2.5 p-2.5 rounded-xl text-xs transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60 ${
-                              !n.isRead ? 'bg-primary-50/40 dark:bg-primary-950/20' : ''
-                            }`}
-                          >
-                            <span className="w-2 h-2 rounded-full bg-primary-600 mt-1 shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-slate-900 dark:text-white line-clamp-1">{n.title}</p>
-                              <p className="text-slate-500 dark:text-slate-400 line-clamp-2 text-[11px] mt-0.5">{n.message}</p>
-                              <span className="text-[10px] text-slate-400 mt-1 block">{n.timestamp}</span>
-                            </div>
-                          </Link>
-                        ))}
+                        {notifications.length > 0 ? (
+                          notifications.map((n) => (
+                            <Link
+                              key={n._id}
+                              to={n.link || '/notifications'}
+                              onClick={() => setIsNotifOpen(false)}
+                              className={`flex items-start gap-2.5 p-2.5 rounded-xl text-xs hover:bg-slate-50 dark:hover:bg-slate-800/60 ${
+                                !n.isRead ? 'bg-primary-50/40 dark:bg-primary-950/20' : ''
+                              }`}
+                            >
+                              <span className="w-2 h-2 rounded-full bg-primary-600 mt-1 shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold line-clamp-1">{n.title}</p>
+                                <p className="text-slate-500 line-clamp-2 text-[11px] mt-0.5">{n.message}</p>
+                                <span className="text-[10px] text-slate-400 mt-1 block">
+                                  {new Date(n.createdAt).toLocaleString()}
+                                </span>
+                              </div>
+                            </Link>
+                          ))
+                        ) : (
+                          <p className="text-center text-xs text-slate-400 py-4">No notifications</p>
+                        )}
                       </div>
                     </div>
                   )}
                 </div>
 
-                {/* Primary CTA (Role aware) */}
+                {/* Role CTA */}
                 {role === 'client' && (
                   <Link to="/dashboard/client/projects/new" className="hidden sm:block">
-                    <Button variant="primary" size="sm" icon={PlusCircle}>
-                      Post Project
-                    </Button>
+                    <Button variant="primary" size="sm" icon={PlusCircle}>Post Project</Button>
                   </Link>
                 )}
-
                 {role === 'freelancer' && (
                   <Link to="/projects" className="hidden sm:block">
-                    <Button variant="subtle" size="sm">
-                      Find Projects
-                    </Button>
+                    <Button variant="subtle" size="sm">Find Projects</Button>
                   </Link>
                 )}
-
                 {role === 'admin' && (
                   <Link to="/admin" className="hidden sm:block">
-                    <Button variant="subtle" size="sm">
-                      Admin Panel
-                    </Button>
+                    <Button variant="subtle" size="sm">Admin Panel</Button>
                   </Link>
                 )}
 
@@ -234,78 +277,35 @@ export function Navbar({ onMobileMenuToggle }) {
                 <div className="relative">
                   <button
                     onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-                    className="flex items-center gap-2 p-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus:outline-none"
+                    className="flex items-center gap-2 p-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                   >
-                    <Avatar
-                      src={currentUser?.avatar}
-                      name={currentUser?.name}
-                      size="sm"
-                      isOnline={true}
-                    />
+                    <Avatar src={currentUser?.avatar} name={currentUser?.name} size="sm" isOnline={true} />
                     <div className="hidden xl:block text-left text-xs">
-                      <span className="font-bold text-slate-900 dark:text-white block leading-tight truncate max-w-[120px]">
-                        {currentUser?.name}
-                      </span>
-                      <span className="text-[10px] text-slate-400 capitalize block">
-                        {role}
-                      </span>
+                      <span className="font-bold block leading-tight truncate max-w-[120px]">{currentUser?.name}</span>
+                      <span className="text-[10px] text-slate-400 capitalize block">{role}</span>
                     </div>
                   </button>
 
-                  {/* Dropdown Menu */}
                   {isProfileMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-soft-lg p-2 z-50 animate-in fade-in slide-in-from-top-2">
+                    <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-soft-lg p-2 z-50">
                       <div className="px-3 py-2.5 border-b border-slate-100 dark:border-slate-800 mb-1">
-                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{currentUser?.name}</p>
+                        <p className="text-xs font-bold truncate">{currentUser?.name}</p>
                         <p className="text-[11px] text-slate-400 truncate">{currentUser?.email}</p>
-                        <Badge variant="primary" size="sm" className="mt-1.5 capitalize">
-                          {role} Account
-                        </Badge>
+                        <Badge variant="primary" size="sm" className="mt-1.5 capitalize">{role} Account</Badge>
                       </div>
 
                       <div className="space-y-0.5 text-xs">
-                        <Link
-                          to={getDashboardPath()}
-                          onClick={() => setIsProfileMenuOpen(false)}
-                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                        >
-                          <LayoutDashboard className="w-4 h-4 text-slate-400" />
-                          <span>Dashboard</span>
+                        <Link to={getDashboardPath()} onClick={() => setIsProfileMenuOpen(false)} className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800">
+                          <LayoutDashboard className="w-4 h-4 text-slate-400" /> Dashboard
                         </Link>
-
-                        {role === 'freelancer' && currentUser?.id && (
-                          <Link
-                            to={`/freelancers/${currentUser.id}`}
-                            onClick={() => setIsProfileMenuOpen(false)}
-                            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                          >
-                            <User className="w-4 h-4 text-slate-400" />
-                            <span>Public Profile</span>
-                          </Link>
-                        )}
-
                         {role !== 'admin' && (
-                          <Link
-                            to={`/dashboard/${role}/settings`}
-                            onClick={() => setIsProfileMenuOpen(false)}
-                            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                          >
-                            <Settings className="w-4 h-4 text-slate-400" />
-                            <span>Settings</span>
+                          <Link to={`/dashboard/${role}/settings`} onClick={() => setIsProfileMenuOpen(false)} className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800">
+                            <Settings className="w-4 h-4 text-slate-400" /> Settings
                           </Link>
                         )}
-
-                        <button
-                          onClick={handleLogout}
-                          disabled={isLoggingOut}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors text-left disabled:opacity-50"
-                        >
-                          {isLoggingOut ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <LogOut className="w-4 h-4" />
-                          )}
-                          <span>{isLoggingOut ? 'Signing Out...' : 'Sign Out'}</span>
+                        <button onClick={handleLogout} disabled={isLoggingOut} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-left disabled:opacity-50">
+                          {isLoggingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
+                          {isLoggingOut ? 'Signing Out...' : 'Sign Out'}
                         </button>
                       </div>
                     </div>
@@ -314,25 +314,12 @@ export function Navbar({ onMobileMenuToggle }) {
               </>
             ) : (
               <div className="flex items-center gap-2">
-                <Link to="/login">
-                  <Button variant="ghost" size="sm">
-                    Log In
-                  </Button>
-                </Link>
-                <Link to="/register">
-                  <Button variant="primary" size="sm">
-                    Sign Up
-                  </Button>
-                </Link>
+                <Link to="/login"><Button variant="ghost" size="sm">Log In</Button></Link>
+                <Link to="/register"><Button variant="primary" size="sm">Sign Up</Button></Link>
               </div>
             )}
 
-            {/* Mobile Menu Toggle Button */}
-            <button
-              onClick={onMobileMenuToggle}
-              className="md:hidden p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              aria-label="Open mobile menu"
-            >
+            <button onClick={onMobileMenuToggle} className="md:hidden p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Open mobile menu">
               <Menu className="w-5 h-5" />
             </button>
           </div>

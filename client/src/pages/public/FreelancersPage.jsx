@@ -1,7 +1,10 @@
 // client/src/pages/public/FreelancersPage.jsx
-import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import { getAllFreelancers } from '../../services/profile.service';
+import { findOrCreateConversation } from '../../services/message.service';
 import { FreelancerCard } from '../../components/cards/FreelancerCard';
 import { SearchBar } from '../../components/common/SearchBar';
 import { Button } from '../../components/common/Button';
@@ -9,11 +12,13 @@ import { Badge } from '../../components/common/Badge';
 import { Pagination } from '../../components/common/Pagination';
 import { EmptyState } from '../../components/common/EmptyState';
 import { FreelancerCardSkeleton } from '../../components/common/SkeletonLoader';
-import { SlidersHorizontal, RotateCcw, X } from 'lucide-react';
+import { SlidersHorizontal, RotateCcw, X, Star, Users } from 'lucide-react';
 
 export function FreelancersPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-
+  const { currentUser } = useAuth();
+  const navigate = useNavigate();
+  const toast = useToast();
   const querySearch = searchParams.get('search') || '';
 
   const [search, setSearch] = useState(querySearch);
@@ -24,8 +29,9 @@ export function FreelancersPage() {
   const [sortBy, setSortBy] = useState('rating');
   const [currentPage, setCurrentPage] = useState(1);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+  const [activeFilterCount, setActiveFilterCount] = useState(0);
+  const [isMessaging, setIsMessaging] = useState(false);
 
-  // Backend data state
   const [freelancers, setFreelancers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [totalPages, setTotalPages] = useState(1);
@@ -33,30 +39,47 @@ export function FreelancersPage() {
 
   const itemsPerPage = 6;
 
-  // Fetch freelancers from backend
   useEffect(() => {
-    const loadFreelancers = async () => {
-      setIsLoading(true);
+    let count = 0;
+    if (minRate > 0) count++;
+    if (maxRate < 150) count++;
+    if (minRating > 0) count++;
+    if (onlyAvailable) count++;
+    setActiveFilterCount(count);
+  }, [minRate, maxRate, minRating, onlyAvailable]);
+
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      loadFreelancers();
+    }, search ? 500 : 0);
+
+    return () => clearTimeout(debounceTimer);
+  }, [currentPage, search, minRate, maxRate, onlyAvailable, sortBy]);
+
+  const loadFreelancers = useCallback(async () => {
+    setIsLoading(true);
+    
+    try {
+      const params = {
+        page: currentPage,
+        limit: itemsPerPage,
+        search: search || undefined,
+        availability: onlyAvailable ? 'available' : undefined,
+        minRate: minRate > 0 ? minRate : undefined,
+        maxRate: maxRate < 150 ? maxRate : undefined,
+        sort: sortBy
+      };
+
+      Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
+
+      const response = await getAllFreelancers(params);
       
-      try {
-        const params = {
-          page: currentPage,
-          limit: itemsPerPage,
-          search: search || undefined,
-          availability: onlyAvailable ? 'available' : undefined,
-          minRate: minRate > 0 ? minRate : undefined,
-          maxRate: maxRate < 150 ? maxRate : undefined,
-          sort: sortBy
-        };
-
-        Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
-
-        const response = await getAllFreelancers(params);
-        
-        if (response.success) {
-          const mapped = response.profiles.map(profile => ({
+      if (response.success) {
+        const mapped = response.profiles
+          .map(profile => ({
             id: profile.userId?._id || profile.userId,
             name: profile.userId?.name || 'Freelancer',
+            email: profile.userId?.email || '',
             avatar: profile.userId?.avatar || '',
             title: profile.headline || 'Professional Freelancer',
             about: profile.bio || '',
@@ -72,25 +95,56 @@ export function FreelancersPage() {
             isVerified: profile.isVerified || false
           }));
 
-          setFreelancers(mapped);
-          setTotalPages(response.totalPages || 1);
-          setTotalCount(response.total || 0);
-        }
-      } catch (error) {
-        console.error('Failed to load freelancers:', error);
-        setFreelancers([]);
-      } finally {
-        setIsLoading(false);
+        setFreelancers(mapped);
+        setTotalPages(response.totalPages || 1);
+        setTotalCount(mapped.length || response.total || 0);
       }
-    };
-
-    loadFreelancers();
-  }, [currentPage, search, minRate, maxRate, onlyAvailable, sortBy]);
+    } catch (error) {
+      console.error('Failed to load freelancers:', error);
+      setFreelancers([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentPage, search, minRate, maxRate, onlyAvailable, sortBy, currentUser]);
 
   const formatLocation = (location) => {
     if (!location) return 'Remote / Global';
     const parts = [location.city, location.country].filter(Boolean);
     return parts.length > 0 ? parts.join(', ') : 'Remote / Global';
+  };
+
+  // ✅ Handle message from freelancer card
+  const handleMessageFreelancer = async (freelancer) => {
+    if (!currentUser) {
+      toast.warning('Login Required', 'Please login to message freelancers.');
+      navigate('/login');
+      return;
+    }
+
+    if (currentUser?.role === 'freelancer') {
+      toast.warning('Not Allowed', 'Freelancers cannot message other freelancers.');
+      return;
+    }
+
+    setIsMessaging(true);
+    try {
+      const response = await findOrCreateConversation(freelancer.id);
+      
+      console.log('=== MESSAGE FROM CARD ===');
+      console.log('Freelancer:', freelancer.name);
+      console.log('Conversation:', response.conversation?._id);
+      console.log('=== END ===');
+      
+      if (response.success && response.conversation) {
+        const conversationId = response.conversation._id;
+        window.location.href = `/messages?conversation=${conversationId}`;
+      }
+    } catch (error) {
+      console.error('Failed to start conversation:', error);
+      toast.error('Failed', error.response?.data?.message || 'Could not start conversation.');
+    } finally {
+      setIsMessaging(false);
+    }
   };
 
   const handleResetFilters = () => {
@@ -110,6 +164,11 @@ export function FreelancersPage() {
         <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
           <SlidersHorizontal className="w-4 h-4 text-primary-600 dark:text-primary-400" />
           <span>Filter Freelancers</span>
+          {activeFilterCount > 0 && (
+            <span className="px-1.5 py-0.5 bg-primary-100 dark:bg-primary-900/40 text-primary-600 text-[10px] font-bold rounded-full">
+              {activeFilterCount}
+            </span>
+          )}
         </h3>
         <button
           onClick={handleResetFilters}
@@ -120,7 +179,6 @@ export function FreelancersPage() {
         </button>
       </div>
 
-      {/* Hourly Rate Filter */}
       <div>
         <div className="flex justify-between items-center mb-2">
           <label className="font-bold uppercase tracking-wider text-slate-400">Hourly Rate</label>
@@ -140,7 +198,6 @@ export function FreelancersPage() {
         />
       </div>
 
-      {/* Rating Filter */}
       <div>
         <label className="block font-bold uppercase tracking-wider text-slate-400 mb-2">Minimum Rating</label>
         <div className="space-y-1.5">
@@ -166,7 +223,6 @@ export function FreelancersPage() {
         </div>
       </div>
 
-      {/* Availability Toggle */}
       <div className="pt-3 border-t border-slate-200 dark:border-slate-800">
         <label className="flex items-center gap-2.5 cursor-pointer text-slate-700 dark:text-slate-300">
           <input
@@ -186,7 +242,6 @@ export function FreelancersPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-8">
-      {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <Badge variant="warning" size="sm" className="mb-2">Verified Talent Directory</Badge>
@@ -197,9 +252,19 @@ export function FreelancersPage() {
             Browse <span className="font-bold text-slate-900 dark:text-white">{totalCount}</span> vetted professionals ready to hire
           </p>
         </div>
+
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
+            <Star className="w-4 h-4 text-amber-500" />
+            <span className="text-xs font-semibold">4.8 Avg Rating</span>
+          </div>
+          <div className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
+            <Users className="w-4 h-4 text-primary-500" />
+            <span className="text-xs font-semibold">{totalCount} Freelancers</span>
+          </div>
+        </div>
       </div>
 
-      {/* Search & Sort Toolbar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-2xl shadow-soft">
         <div className="w-full sm:max-w-md">
           <SearchBar
@@ -220,6 +285,11 @@ export function FreelancersPage() {
           >
             <SlidersHorizontal className="w-4 h-4 text-primary-600" />
             <span>Filters</span>
+            {activeFilterCount > 0 && (
+              <span className="px-1.5 py-0.5 bg-primary-100 text-primary-600 text-[10px] font-bold rounded-full">
+                {activeFilterCount}
+              </span>
+            )}
           </button>
 
           <select
@@ -234,14 +304,11 @@ export function FreelancersPage() {
         </div>
       </div>
 
-      {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
-        {/* Desktop Filter Sidebar */}
         <div className="hidden lg:block lg:col-span-1 p-6 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-2xl shadow-soft sticky top-24">
           {FilterSidebarContent}
         </div>
 
-        {/* Results */}
         <div className="lg:col-span-3 space-y-4">
           {isLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -251,9 +318,17 @@ export function FreelancersPage() {
             </div>
           ) : freelancers.length > 0 ? (
             <>
+              <p className="text-xs text-slate-400">
+                Showing {freelancers.length} of {totalCount} freelancers
+              </p>
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 {freelancers.map((fl) => (
-                  <FreelancerCard key={fl.id} freelancer={fl} />
+                  <FreelancerCard 
+                    key={fl.id} 
+                    freelancer={fl} 
+                    onMessage={() => handleMessageFreelancer(fl)}
+                  />
                 ))}
               </div>
 
@@ -278,7 +353,6 @@ export function FreelancersPage() {
         </div>
       </div>
 
-      {/* Mobile Filter Drawer */}
       {isMobileFilterOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div
