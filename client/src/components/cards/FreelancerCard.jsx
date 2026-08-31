@@ -1,24 +1,21 @@
+// client/src/components/cards/FreelancerCard.jsx
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Avatar } from '../common/Avatar';
 import { Rating } from '../common/Rating';
 import { Badge } from '../common/Badge';
 import { Button } from '../common/Button';
-import { MapPin, Zap, CheckCircle2, Bookmark } from 'lucide-react';
+import { MapPin, Bookmark } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
-import { useMarketplace } from '../../context/MarketplaceContext';
 import { useToast } from '../../context/ToastContext';
 
-export function FreelancerCard({ freelancer, onContactClick }) {
-  const { savedFreelancerIds, toggleSaveFreelancer } = useMarketplace();
+export function FreelancerCard({ freelancer, onMessage }) {
   const toast = useToast();
-  const isSaved = savedFreelancerIds.includes(freelancer.id);
 
   const handleBookmark = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    toggleSaveFreelancer(freelancer.id);
-    toast.info(isSaved ? 'Freelancer Removed' : 'Freelancer Saved', isSaved ? 'Removed from saved talent' : 'Added to your bookmarked talent');
+    toast.info('Saved', 'Freelancer bookmarked.');
   };
 
   return (
@@ -44,10 +41,8 @@ export function FreelancerCard({ freelancer, onContactClick }) {
                 >
                   {freelancer.name}
                 </Link>
-                {freelancer.isTopRated && (
-                  <Badge variant="warning" size="sm">
-                    Top Rated
-                  </Badge>
+                {freelancer.isVerified && (
+                  <Badge variant="warning" size="sm">Verified</Badge>
                 )}
               </div>
               <p className="text-xs text-slate-600 dark:text-slate-300 font-medium line-clamp-1 mt-0.5">
@@ -55,7 +50,7 @@ export function FreelancerCard({ freelancer, onContactClick }) {
               </p>
               <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-1">
                 <MapPin className="w-3 h-3 text-slate-400" />
-                <span>{freelancer.location}</span>
+                <span>{freelancer.location || 'Remote'}</span>
               </div>
             </div>
           </div>
@@ -64,33 +59,29 @@ export function FreelancerCard({ freelancer, onContactClick }) {
             onClick={handleBookmark}
             type="button"
             aria-label="Bookmark freelancer"
-            className={`p-2 rounded-xl border transition-colors ${
-              isSaved
-                ? 'bg-primary-50 border-primary-200 text-primary-600 dark:bg-primary-950/60 dark:border-primary-800 dark:text-primary-400'
-                : 'border-slate-200 dark:border-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
-            }`}
+            className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
           >
-            <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-current' : ''}`} />
+            <Bookmark className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Rating & Rate stats */}
+        {/* Rating & Rate */}
         <div className="flex items-center justify-between py-2.5 px-3.5 bg-slate-50 dark:bg-slate-850/60 rounded-xl mb-4 text-xs">
-          <Rating value={freelancer.rating} reviewsCount={freelancer.reviewsCount} size="xs" />
+          <Rating value={freelancer.rating || 0} reviewsCount={freelancer.reviewsCount || 0} size="xs" />
           <div className="font-bold text-slate-900 dark:text-white">
-            <span>${freelancer.hourlyRate}</span>
+            <span>₹{(freelancer.hourlyRate || 0).toLocaleString('en-IN')}</span>
             <span className="text-slate-400 font-normal text-[11px]">/hr</span>
           </div>
         </div>
 
-        {/* Short Bio */}
+        {/* Bio */}
         <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed mb-4">
-          {freelancer.shortBio || freelancer.about}
+          {freelancer.shortBio || freelancer.about || 'No bio provided.'}
         </p>
 
         {/* Skills */}
         <div className="flex flex-wrap gap-1.5 mb-5">
-          {freelancer.skills?.slice(0, 4).map((skill, idx) => (
+          {(freelancer.skills || []).slice(0, 4).map((skill, idx) => (
             <span
               key={idx}
               className="text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2.5 py-0.5 rounded-lg"
@@ -98,7 +89,7 @@ export function FreelancerCard({ freelancer, onContactClick }) {
               {skill}
             </span>
           ))}
-          {freelancer.skills?.length > 4 && (
+          {(freelancer.skills || []).length > 4 && (
             <span className="text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 px-2 py-0.5 rounded-lg">
               +{freelancer.skills.length - 4}
             </span>
@@ -113,12 +104,20 @@ export function FreelancerCard({ freelancer, onContactClick }) {
             View Profile
           </Button>
         </Link>
-        <Link to={`/messages`} className="flex-1">
-          <Button variant="primary" size="sm" className="w-full">
-            Contact
-          </Button>
-        </Link>
+        <Button
+          variant="primary"
+          size="sm"
+          className="flex-1"
+          onClick={(e) => {
+            e.preventDefault();
+            onMessage?.(freelancer);
+          }}
+        >
+          Message
+        </Button>
       </div>
     </div>
   );
 }
+
+export default FreelancerCard;

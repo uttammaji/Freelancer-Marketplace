@@ -1,3 +1,4 @@
+// server/src/models/delivery.model.js
 import mongoose from "mongoose";
 
 const deliverySchema = new mongoose.Schema({
@@ -32,15 +33,11 @@ const deliverySchema = new mongoose.Schema({
             type: String,
             required: true,
         },
-
         filename: String,
-
         size: Number,
-
         type: String,
-
         publicId: String,
-    }, ],
+    }],
 
     githubUrl: {
         type: String,
@@ -73,6 +70,11 @@ const deliverySchema = new mongoose.Schema({
         type: String,
         default: null,
     },
+    reviewedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    default: null,
+},
 
     submittedAt: {
         type: Date,
@@ -92,7 +94,4 @@ deliverySchema.index({
     version: -1,
 });
 
-export default mongoose.model(
-    "Delivery",
-    deliverySchema
-);
+export const Delivery = mongoose.model("Delivery", deliverySchema);

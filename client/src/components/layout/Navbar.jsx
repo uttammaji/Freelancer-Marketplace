@@ -1,5 +1,5 @@
 // client/src/components/layout/Navbar.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -21,8 +21,7 @@ import {
   LayoutDashboard,
   Settings,
   LogOut,
-  User,
-  Loader2
+  Loader2,
 } from 'lucide-react';
 
 export function Navbar({ onMobileMenuToggle }) {
@@ -35,31 +34,33 @@ export function Navbar({ onMobileMenuToggle }) {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  
-  // data states
+
   const [notifications, setNotifications] = useState([]);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [unreadMessages, setUnreadMessages] = useState(0);
 
-  // Fetch real notifications from backend
+  const profileMenuRef = useRef(null);
+  const notifMenuRef = useRef(null);
+
   const fetchNotifications = useCallback(async () => {
     try {
       const response = await getMyNotifications({ limit: 5 });
       if (response.success) {
-        setNotifications(response.notifications);
-        setUnreadNotifs(response.unreadCount);
+        setNotifications(response.notifications || []);
+        setUnreadNotifs(response.unreadCount || 0);
       }
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
     }
   }, []);
 
-  // Fetch real unread messages count
   const fetchUnreadMessages = useCallback(async () => {
     try {
       const response = await getMyConversations();
       if (response.success) {
-        const totalUnread = response.conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+        const totalUnread = (response.conversations || []).reduce(
+          (sum, c) => sum + (c.unreadCount || 0), 0
+        );
         setUnreadMessages(totalUnread);
       }
     } catch (error) {
@@ -67,7 +68,6 @@ export function Navbar({ onMobileMenuToggle }) {
     }
   }, []);
 
-  // Fetch on mount and when auth changes
   useEffect(() => {
     if (isAuthenticated) {
       fetchNotifications();
@@ -75,7 +75,6 @@ export function Navbar({ onMobileMenuToggle }) {
     }
   }, [isAuthenticated, fetchNotifications, fetchUnreadMessages]);
 
-  // Listen for real-time notifications via Socket
   useEffect(() => {
     const unsubscribe = onReceiveNotification((data) => {
       if (data?.notification) {
@@ -87,6 +86,21 @@ export function Navbar({ onMobileMenuToggle }) {
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe();
     };
+  }, []);
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+        setIsProfileMenuOpen(false);
+      }
+      if (notifMenuRef.current && !notifMenuRef.current.contains(event.target)) {
+        setIsNotifOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const handleSearchSubmit = (e) => {
@@ -115,9 +129,9 @@ export function Navbar({ onMobileMenuToggle }) {
     <header className="sticky top-0 z-40 w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-4">
-          {/* Left: Logo & Nav Links */}
-          <div className="flex items-center gap-6 lg:gap-8">
-            <Link to="/" className="flex items-center gap-2.5 shrink-0 group">
+          {/* Logo */}
+          <div className="flex items-center gap-6 lg:gap-8 shrink-0">
+            <Link to="/" className="flex items-center gap-2.5 group">
               <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary-600 to-indigo-500 flex items-center justify-center text-white shadow-soft group-hover:scale-105 transition-transform">
                 <Briefcase className="w-5 h-5 stroke-[2.2]" />
               </div>
@@ -126,6 +140,7 @@ export function Navbar({ onMobileMenuToggle }) {
               </span>
             </Link>
 
+            {/* Desktop Nav */}
             <nav className="hidden md:flex items-center gap-1">
               <Link
                 to="/projects"
@@ -175,7 +190,8 @@ export function Navbar({ onMobileMenuToggle }) {
           </div>
 
           {/* Right Actions */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
               aria-label="Toggle dark mode"
@@ -185,9 +201,7 @@ export function Navbar({ onMobileMenuToggle }) {
             </button>
 
             {isLoading ? (
-              <div className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
-              </div>
+              <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
             ) : isAuthenticated ? (
               <>
                 {/* Messages */}
@@ -205,7 +219,7 @@ export function Navbar({ onMobileMenuToggle }) {
                 </Link>
 
                 {/* Notifications */}
-                <div className="relative">
+                <div className="relative" ref={notifMenuRef}>
                   <button
                     onClick={() => setIsNotifOpen(!isNotifOpen)}
                     aria-label="Notifications"
@@ -256,30 +270,20 @@ export function Navbar({ onMobileMenuToggle }) {
                   )}
                 </div>
 
-                {/* Role CTA */}
+                {/* Role-specific CTA */}
                 {role === 'client' && (
                   <Link to="/dashboard/client/projects/new" className="hidden sm:block">
                     <Button variant="primary" size="sm" icon={PlusCircle}>Post Project</Button>
                   </Link>
                 )}
-                {role === 'freelancer' && (
-                  <Link to="/projects" className="hidden sm:block">
-                    <Button variant="subtle" size="sm">Find Projects</Button>
-                  </Link>
-                )}
-                {role === 'admin' && (
-                  <Link to="/admin" className="hidden sm:block">
-                    <Button variant="subtle" size="sm">Admin Panel</Button>
-                  </Link>
-                )}
 
                 {/* Profile Dropdown */}
-                <div className="relative">
+                <div className="relative" ref={profileMenuRef}>
                   <button
                     onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
                     className="flex items-center gap-2 p-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                   >
-                    <Avatar src={currentUser?.avatar} name={currentUser?.name} size="sm" isOnline={true} />
+                    <Avatar src={currentUser?.avatar} name={currentUser?.name} size="sm" />
                     <div className="hidden xl:block text-left text-xs">
                       <span className="font-bold block leading-tight truncate max-w-[120px]">{currentUser?.name}</span>
                       <span className="text-[10px] text-slate-400 capitalize block">{role}</span>
@@ -295,15 +299,27 @@ export function Navbar({ onMobileMenuToggle }) {
                       </div>
 
                       <div className="space-y-0.5 text-xs">
-                        <Link to={getDashboardPath()} onClick={() => setIsProfileMenuOpen(false)} className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800">
+                        <Link
+                          to={getDashboardPath()}
+                          onClick={() => setIsProfileMenuOpen(false)}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
+                        >
                           <LayoutDashboard className="w-4 h-4 text-slate-400" /> Dashboard
                         </Link>
                         {role !== 'admin' && (
-                          <Link to={`/dashboard/${role}/settings`} onClick={() => setIsProfileMenuOpen(false)} className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800">
+                          <Link
+                            to={`/dashboard/${role}/settings`}
+                            onClick={() => setIsProfileMenuOpen(false)}
+                            className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
+                          >
                             <Settings className="w-4 h-4 text-slate-400" /> Settings
                           </Link>
                         )}
-                        <button onClick={handleLogout} disabled={isLoggingOut} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-left disabled:opacity-50">
+                        <button
+                          onClick={handleLogout}
+                          disabled={isLoggingOut}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-left disabled:opacity-50"
+                        >
                           {isLoggingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
                           {isLoggingOut ? 'Signing Out...' : 'Sign Out'}
                         </button>
@@ -319,7 +335,12 @@ export function Navbar({ onMobileMenuToggle }) {
               </div>
             )}
 
-            <button onClick={onMobileMenuToggle} className="md:hidden p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Open mobile menu">
+            {/* Mobile Menu */}
+            <button
+              onClick={onMobileMenuToggle}
+              className="md:hidden p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              aria-label="Open mobile menu"
+            >
               <Menu className="w-5 h-5" />
             </button>
           </div>
@@ -328,3 +349,5 @@ export function Navbar({ onMobileMenuToggle }) {
     </header>
   );
 }
+
+export default Navbar;

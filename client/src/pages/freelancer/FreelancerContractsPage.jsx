@@ -1,30 +1,85 @@
-import React, { useState } from 'react';
+// client/src/pages/freelancer/FreelancerContractsPage.jsx
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { useMarketplace } from '../../context/MarketplaceContext';
+import { useToast } from '../../context/ToastContext';
+import { getFreelancerContracts } from '../../services/contract.service';
 import { ContractCard } from '../../components/cards/ContractCard';
 import { Tabs } from '../../components/common/Tabs';
 import { Badge } from '../../components/common/Badge';
 import { EmptyState } from '../../components/common/EmptyState';
-import { FileCheck2 } from 'lucide-react';
+import { FileCheck2, Loader2 } from 'lucide-react';
 
 export function FreelancerContractsPage() {
   const { currentUser } = useAuth();
-  const { contracts } = useMarketplace();
+  const toast = useToast();
+  
+  const [contracts, setContracts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
 
-  const myContracts = contracts.filter(c => c.freelancerId === 'fl-1' || c.freelancerUserId === currentUser?.id);
+  // Fetch freelancer contracts
+  const fetchContracts = useCallback(async () => {
+    setIsLoading(true);
+    
+    try {
+      const response = await getFreelancerContracts();
+      
+      if (response.success) {
+        setContracts(response.contracts || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch contracts:', error);
+      toast.error('Load Failed', 'Could not load your contracts.');
+      setContracts([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
 
-  const filtered = myContracts.filter(c => {
+  useEffect(() => {
+    fetchContracts();
+  }, [fetchContracts]);
+
+  // Filter by tab
+  const filtered = contracts.filter(c => {
     if (activeTab === 'all') return true;
-    if (activeTab === 'in_progress') return c.status !== 'completed';
+    if (activeTab === 'in_progress') {
+      return ['pending_payment', 'active', 'submitted'].includes(c.status);
+    }
     return c.status === activeTab;
   });
 
   const tabs = [
-    { id: 'all', label: 'All Contracts', badge: myContracts.length },
-    { id: 'in_progress', label: 'In Progress / Active', badge: myContracts.filter(c => c.status !== 'completed').length },
-    { id: 'completed', label: 'Completed', badge: myContracts.filter(c => c.status === 'completed').length },
+    { id: 'all', label: 'All Contracts', badge: contracts.length },
+    { id: 'in_progress', label: 'In Progress / Active', badge: contracts.filter(c => c.status !== 'completed' && c.status !== 'cancelled').length },
+    { id: 'completed', label: 'Completed', badge: contracts.filter(c => c.status === 'completed').length },
   ];
+
+  // Map backend contract to card format
+  const mapContractToCard = (contract) => ({
+    id: contract._id,
+    projectTitle: contract.projectId?.title || 'Project',
+    clientName: contract.clientId?.name || 'Client',
+    clientAvatar: contract.clientId?.avatar || '',
+    clientEmail: contract.clientId?.email || '',
+    amount: contract.amount,
+    status: contract.status,
+    startDate: contract.startDate,
+    deadline: contract.deadline,
+    createdAt: contract.createdAt,
+  });
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 text-primary-600 animate-spin mx-auto mb-4" />
+          <p className="text-sm text-slate-500">Loading contracts...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 pb-12">
@@ -43,16 +98,22 @@ export function FreelancerContractsPage() {
       {filtered.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {filtered.map((contract) => (
-            <ContractCard key={contract.id} contract={contract} role="freelancer" />
+            <ContractCard 
+              key={contract._id} 
+              contract={mapContractToCard(contract)} 
+              role="freelancer" 
+            />
           ))}
         </div>
       ) : (
         <EmptyState
           icon={FileCheck2}
-          title="No contracts found"
+          title={activeTab === 'all' ? 'No contracts found' : 'No contracts in this tab'}
           description="When clients accept your proposals, active contract workspaces will appear here."
         />
       )}
     </div>
   );
 }
+
+export default FreelancerContractsPage;

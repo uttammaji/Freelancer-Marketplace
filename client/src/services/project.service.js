@@ -92,3 +92,10 @@ export const updateProjectStatus = async (projectId, status) => {
   const response = await api.patch(`/projects/${projectId}/status`, { status });
   return response.data;
 };
+
+// admin
+
+export const getAllProjectsAdmin = async (params = {}) => {
+  const response = await api.get('/projects/admin/all', { params });
+  return response.data;
+};

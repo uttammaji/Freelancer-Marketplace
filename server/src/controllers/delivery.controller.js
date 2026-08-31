@@ -2,14 +2,17 @@
 import { Delivery } from '../models/delivery.model.js';
 import { Contract } from '../models/contract.model.js';
 import { Project } from '../models/project.model.js';
+import { Transaction } from '../models/transaction.model.js';
+import { User } from '../models/user.models.js';
 import { AppError, asyncHandler } from '../middleware/error.middleware.js';
 import { deleteCacheByPattern } from '../utils/cache.utils.js';
+import { sendWorkSubmittedEmail, sendWorkAcceptedEmail } from '../utils/notificationEmails.js';
 
-// ============ CREATE DELIVERY ============
-
-// @desc    Submit work delivery (Freelancer)
-// @route   POST /api/deliveries
-// @access  Private (Freelancer)
+/**
+ * Submit work delivery (Freelancer)
+ * @route POST /api/deliveries
+ * @access Private (Freelancer)
+ */
 export const createDelivery = asyncHandler(async (req, res, next) => {
   const {
     contractId,
@@ -24,51 +27,53 @@ export const createDelivery = asyncHandler(async (req, res, next) => {
     throw new AppError('Please provide contractId, title, and description', 400);
   }
 
-  // Check contract exists
   const contract = await Contract.findById(contractId);
   if (!contract) {
     throw new AppError('Contract not found', 404);
   }
 
-  // Check if user is the freelancer
   if (contract.freelancerId.toString() !== req.user.id) {
     throw new AppError('Only freelancer can submit work', 403);
   }
 
-  // Check contract status
   if (contract.status !== 'active' && contract.status !== 'in_progress') {
     throw new AppError('Contract is not in progress', 400);
   }
 
-  // Check if delivery already pending
   const existingDelivery = await Delivery.findOne({
     contractId,
-    status: { $in: ['submitted', 'under_review'] },
+    status: { $in: ['submitted', 'revision_requested'] },
   });
 
   if (existingDelivery) {
     throw new AppError('You already have a pending delivery for this contract', 400);
   }
 
-  // Create delivery
   const delivery = await Delivery.create({
     contractId,
     projectId: contract.projectId,
     freelancerId: req.user.id,
-    title,
-    description,
-    attachments: attachments || [],
+    message: description,
     githubUrl: githubUrl || null,
-    liveDemoUrl: liveDemoUrl || null,
+    liveUrl: liveDemoUrl || null,
     status: 'submitted',
   });
 
-  // Update contract
   contract.status = 'submitted';
   await contract.save();
 
   await deleteCacheByPattern('deliveries:*');
   await deleteCacheByPattern('contracts:*');
+
+  // Send email to client
+  try {
+    const client = await User.findById(contract.clientId);
+    if (client) {
+      sendWorkSubmittedEmail(client, delivery);
+    }
+  } catch (emailError) {
+    console.error('Work submitted email failed:', emailError.message);
+  }
 
   res.status(201).json({
     success: true,
@@ -77,18 +82,17 @@ export const createDelivery = asyncHandler(async (req, res, next) => {
   });
 });
 
-// ============ GET DELIVERIES ============
-
-// @desc    Get deliveries for a contract
-// @route   GET /api/deliveries/contract/:contractId
-// @access  Private (Client or Freelancer)
+/**
+ * Get deliveries for a contract
+ * @route GET /api/deliveries/contract/:contractId
+ * @access Private (Client or Freelancer)
+ */
 export const getContractDeliveries = asyncHandler(async (req, res, next) => {
   const contract = await Contract.findById(req.params.contractId);
   if (!contract) {
     throw new AppError('Contract not found', 404);
   }
 
-  // Check authorization
   const isInvolved =
     contract.clientId.toString() === req.user.id ||
     contract.freelancerId.toString() === req.user.id;
@@ -99,7 +103,6 @@ export const getContractDeliveries = asyncHandler(async (req, res, next) => {
 
   const deliveries = await Delivery.find({ contractId: req.params.contractId })
     .populate('freelancerId', 'name email avatar')
-    .populate('reviewedBy', 'name email')
     .sort({ createdAt: -1 });
 
   res.status(200).json({
@@ -109,13 +112,15 @@ export const getContractDeliveries = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get my deliveries (Freelancer)
-// @route   GET /api/deliveries/my
-// @access  Private (Freelancer)
+/**
+ * Get my deliveries (Freelancer)
+ * @route GET /api/deliveries/my
+ * @access Private (Freelancer)
+ */
 export const getMyDeliveries = asyncHandler(async (req, res, next) => {
   const deliveries = await Delivery.find({ freelancerId: req.user.id })
     .populate('projectId', 'title')
-    .populate('contractId', 'projectTitle')
+    .populate('contractId', 'amount platformFee freelancerAmount')
     .sort({ createdAt: -1 });
 
   res.status(200).json({
@@ -125,14 +130,15 @@ export const getMyDeliveries = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get single delivery
-// @route   GET /api/deliveries/:id
-// @access  Private
+/**
+ * Get single delivery
+ * @route GET /api/deliveries/:id
+ * @access Private
+ */
 export const getDeliveryById = asyncHandler(async (req, res, next) => {
   const delivery = await Delivery.findById(req.params.id)
     .populate('freelancerId', 'name email avatar')
-    .populate('projectId', 'title')
-    .populate('reviewedBy', 'name email');
+    .populate('projectId', 'title');
 
   if (!delivery) {
     throw new AppError('Delivery not found', 404);
@@ -153,11 +159,11 @@ export const getDeliveryById = asyncHandler(async (req, res, next) => {
   });
 });
 
-// ============ REVIEW DELIVERY ============
-
-// @desc    Accept delivery (Client)
-// @route   PATCH /api/deliveries/:id/accept
-// @access  Private (Client)
+/**
+ * Accept delivery (Client)
+ * @route PATCH /api/deliveries/:id/accept
+ * @access Private (Client)
+ */
 export const acceptDelivery = asyncHandler(async (req, res, next) => {
   const { feedback } = req.body;
 
@@ -171,45 +177,63 @@ export const acceptDelivery = asyncHandler(async (req, res, next) => {
     throw new AppError('Contract not found', 404);
   }
 
-  // Check if user is client
   if (contract.clientId.toString() !== req.user.id) {
     throw new AppError('Only client can accept delivery', 403);
   }
 
-  // Check delivery status
-  if (delivery.status !== 'submitted' && delivery.status !== 'under_review') {
+  if (delivery.status !== 'submitted') {
     throw new AppError('Delivery already processed', 400);
   }
 
-  // Update delivery
   delivery.status = 'accepted';
-  delivery.reviewedBy = req.user.id;
-  delivery.reviewedAt = new Date();
-  delivery.feedback = feedback || '';
+  delivery.acceptedAt = new Date();
   await delivery.save();
 
-  // Update contract
   contract.status = 'completed';
-  contract.completedAt = new Date();
   await contract.save();
 
-  // Update project
   await Project.findByIdAndUpdate(contract.projectId, { status: 'completed' });
+
+  await Transaction.updateMany(
+    { 
+      contractId: delivery.contractId,
+      type: 'freelancer_earning',
+      status: 'pending',
+    },
+    { 
+      status: 'completed',
+      description: 'Escrow released - work completed',
+    }
+  );
 
   await deleteCacheByPattern('deliveries:*');
   await deleteCacheByPattern('contracts:*');
   await deleteCacheByPattern('projects:*');
+  await deleteCacheByPattern('transactions:*');
+
+  // Send email to freelancer
+  try {
+    const freelancer = await User.findById(delivery.freelancerId);
+    if (freelancer) {
+      const amount = contract.freelancerAmount || contract.amount;
+      sendWorkAcceptedEmail(freelancer, delivery, amount);
+    }
+  } catch (emailError) {
+    console.error('Work accepted email failed:', emailError.message);
+  }
 
   res.status(200).json({
     success: true,
-    message: 'Delivery accepted. Contract completed!',
+    message: 'Delivery accepted. Contract completed. Escrow released.',
     delivery,
   });
 });
 
-// @desc    Request revision (Client)
-// @route   PATCH /api/deliveries/:id/request-revision
-// @access  Private (Client)
+/**
+ * Request revision (Client)
+ * @route PATCH /api/deliveries/:id/request-revision
+ * @access Private (Client)
+ */
 export const requestRevision = asyncHandler(async (req, res, next) => {
   const { feedback } = req.body;
 
@@ -236,9 +260,7 @@ export const requestRevision = asyncHandler(async (req, res, next) => {
   }
 
   delivery.status = 'revision_requested';
-  delivery.reviewedBy = req.user.id;
-  delivery.reviewedAt = new Date();
-  delivery.feedback = feedback;
+  delivery.revisionMessage = feedback;
   await delivery.save();
 
   contract.status = 'revision_requested';
@@ -254,11 +276,11 @@ export const requestRevision = asyncHandler(async (req, res, next) => {
   });
 });
 
-// ============ UPDATE DELIVERY ============
-
-// @desc    Update delivery (Freelancer - after revision)
-// @route   PUT /api/deliveries/:id
-// @access  Private (Freelancer)
+/**
+ * Update delivery after revision (Freelancer)
+ * @route PUT /api/deliveries/:id
+ * @access Private (Freelancer)
+ */
 export const updateDelivery = asyncHandler(async (req, res, next) => {
   let delivery = await Delivery.findById(req.params.id);
 
@@ -274,26 +296,24 @@ export const updateDelivery = asyncHandler(async (req, res, next) => {
     throw new AppError('Delivery is not in revision state', 400);
   }
 
-  const { title, description, attachments, githubUrl, liveDemoUrl } = req.body;
+  const { title, description, githubUrl, liveDemoUrl } = req.body;
 
   delivery = await Delivery.findByIdAndUpdate(
     req.params.id,
     {
-      title: title || delivery.title,
-      description: description || delivery.description,
-      attachments: attachments || delivery.attachments,
+      message: description || delivery.message,
       githubUrl: githubUrl || delivery.githubUrl,
-      liveDemoUrl: liveDemoUrl || delivery.liveDemoUrl,
+      liveUrl: liveDemoUrl || delivery.liveUrl,
       status: 'submitted',
-      feedback: null,
+      revisionMessage: null,
     },
     { new: true, runValidators: true }
   );
 
-  // Update contract
   await Contract.findByIdAndUpdate(delivery.contractId, { status: 'submitted' });
 
   await deleteCacheByPattern('deliveries:*');
+  await deleteCacheByPattern('contracts:*');
 
   res.status(200).json({
     success: true,
@@ -302,11 +322,11 @@ export const updateDelivery = asyncHandler(async (req, res, next) => {
   });
 });
 
-// ============ DELETE DELIVERY ============
-
-// @desc    Delete delivery (Freelancer - if not processed)
-// @route   DELETE /api/deliveries/:id
-// @access  Private (Freelancer)
+/**
+ * Delete delivery (Freelancer)
+ * @route DELETE /api/deliveries/:id
+ * @access Private (Freelancer)
+ */
 export const deleteDelivery = asyncHandler(async (req, res, next) => {
   const delivery = await Delivery.findById(req.params.id);
 
@@ -324,10 +344,10 @@ export const deleteDelivery = asyncHandler(async (req, res, next) => {
 
   await Delivery.findByIdAndDelete(req.params.id);
 
-  // Restore contract status
-  await Contract.findByIdAndUpdate(delivery.contractId, { status: 'in_progress' });
+  await Contract.findByIdAndUpdate(delivery.contractId, { status: 'active' });
 
   await deleteCacheByPattern('deliveries:*');
+  await deleteCacheByPattern('contracts:*');
 
   res.status(200).json({
     success: true,

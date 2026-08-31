@@ -19,33 +19,19 @@ const router = express.Router();
 router.use(protect);
 
 // ============ FREELANCER ROUTES ============
-
-// Create delivery
 router.post('/', isFreelancer, createDelivery);
-
-// Get my deliveries
-router.get('/my', isFreelancer, getMyDeliveries);
-
-// Update delivery (after revision)
-router.put('/:id', isFreelancer, updateDelivery);
-
-// Delete delivery
-router.delete('/:id', isFreelancer, deleteDelivery);
+router.get('/my', isFreelancer, getMyDeliveries); // ✅ BEFORE /:id
 
 // ============ CLIENT ROUTES ============
-
-// Accept delivery
 router.patch('/:id/accept', isClient, acceptDelivery);
-
-// Request revision
 router.patch('/:id/request-revision', isClient, requestRevision);
 
 // ============ SHARED ROUTES ============
+router.get('/contract/:contractId', getContractDeliveries); // ✅ BEFORE /:id
 
-// Get contract deliveries
-router.get('/contract/:contractId', getContractDeliveries);
-
-// Get single delivery
+// ============ DYNAMIC ROUTES (MUST BE LAST) ============
 router.get('/:id', getDeliveryById);
+router.put('/:id', isFreelancer, updateDelivery);
+router.delete('/:id', isFreelancer, deleteDelivery);
 
 export default router;

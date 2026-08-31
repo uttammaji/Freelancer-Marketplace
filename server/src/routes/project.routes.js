@@ -8,21 +8,25 @@ import {
   updateProject,
   deleteProject,
   updateProjectStatus,
-  getSimilarProjects
+  getSimilarProjects,
+  getAllProjectsAdmin, // ✅ Added import
 } from '../controllers/project.controller.js';
 import { protect } from '../middleware/auth.middleware.js';
-import { isClient } from '../middleware/role.middleware.js';
+import { isClient, isAdmin } from '../middleware/role.middleware.js';
 import { cacheMiddleware } from '../middleware/cache.middleware.js';
 
 const router = express.Router();
 
+//Admin route 
+router.get('/admin/all', protect, isAdmin, getAllProjectsAdmin);
+
+// My projects routes
+router.get('/my/projects', protect, isClient, getMyProjects);
+
 // Public routes WITH caching
 router.get('/', cacheMiddleware('projects', 300), getAllProjects);
-router.get('/:id', cacheMiddleware('project', 300), getProjectById);
 router.get('/:id/similar', cacheMiddleware('similar-projects', 300), getSimilarProjects);
-
-// Private routes (any logged-in user)
-router.get('/my/projects', protect, isClient, getMyProjects);
+router.get('/:id', cacheMiddleware('project', 300), getProjectById);
 
 // Client only routes
 router.post('/', protect, isClient, createProject);

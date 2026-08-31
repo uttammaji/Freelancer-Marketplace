@@ -1,31 +1,56 @@
+// client/src/components/cards/ContractCard.jsx
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Avatar } from '../common/Avatar';
 import { Badge } from '../common/Badge';
 import { Button } from '../common/Button';
 import { formatCurrency, formatDate } from '../../utils/formatters';
-import { Clock, Shield, CheckCircle2, AlertCircle, ArrowRight, FolderKanban } from 'lucide-react';
+import { 
+  Clock, 
+  Shield, 
+  CheckCircle2, 
+  AlertCircle, 
+  ArrowRight, 
+  FolderKanban,
+  IndianRupee,
+  Wallet,
+  CheckCheck,
+} from 'lucide-react';
 
 export function ContractCard({ contract, role = 'client' }) {
   const isClient = role === 'client';
-  const partnerName = isClient ? contract.freelancerName : contract.clientName;
-  const partnerAvatar = isClient ? contract.freelancerAvatar : contract.clientAvatar;
-  const targetLink = isClient ? `/dashboard/client/contracts/${contract.id}` : `/dashboard/freelancer/contracts/${contract.id}`;
+  const partnerName = isClient 
+    ? contract.freelancerName || contract.freelancerId?.name || 'Freelancer'
+    : contract.clientName || contract.clientId?.name || 'Client';
+  const partnerAvatar = isClient 
+    ? contract.freelancerAvatar || contract.freelancerId?.avatar || ''
+    : contract.clientAvatar || contract.clientId?.avatar || '';
+  const targetLink = isClient 
+    ? `/dashboard/client/contracts/${contract.id || contract._id}` 
+    : `/dashboard/freelancer/contracts/${contract.id || contract._id}`;
 
-  const completedMilestones = contract.milestones?.filter(m => m.status === 'completed').length || 0;
-  const totalMilestones = contract.milestones?.length || 1;
-  const progressPercent = Math.round((completedMilestones / totalMilestones) * 100);
+  // Real amount fields
+  const contractAmount = contract.amount || contract.totalBudget || 0;
+  const escrowBalance = contract.escrowBalance || contractAmount;
+  const freelancerAmount = contract.freelancerAmount || contractAmount;
 
+  // Status badge
   const getStatusBadge = () => {
     switch (contract.status) {
-      case 'completed':
-        return <Badge variant="success" size="sm" dot>Completed</Badge>;
+      case 'pending_payment':
+        return <Badge variant="warning" size="sm" dot>Pending Payment</Badge>;
+      case 'active':
+        return <Badge variant="primary" size="sm" dot>Active</Badge>;
       case 'submitted':
-        return <Badge variant="warning" size="sm" dot>Work Submitted</Badge>;
+        return <Badge variant="warning" size="sm" dot><CheckCheck className="w-3 h-3" /> Work Submitted</Badge>;
       case 'revision_requested':
         return <Badge variant="danger" size="sm" dot>Revision Requested</Badge>;
+      case 'completed':
+        return <Badge variant="success" size="sm" dot><CheckCircle2 className="w-3 h-3" /> Completed</Badge>;
+      case 'cancelled':
+        return <Badge variant="danger" size="sm">Cancelled</Badge>;
       case 'disputed':
-        return <Badge variant="danger" size="sm" dot>In Dispute</Badge>;
+        return <Badge variant="danger" size="sm" dot>Disputed</Badge>;
       default:
         return <Badge variant="primary" size="sm" dot>In Progress</Badge>;
     }
@@ -36,19 +61,19 @@ export function ContractCard({ contract, role = 'client' }) {
       <div>
         {/* Header */}
         <div className="flex items-start justify-between gap-3 mb-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {getStatusBadge()}
             <span className="text-xs text-slate-400">Due {formatDate(contract.deadline)}</span>
           </div>
           <span className="text-sm font-bold text-slate-900 dark:text-white">
-            {formatCurrency(contract.totalBudget)}
+            {formatCurrency(contractAmount)}
           </span>
         </div>
 
         {/* Project Title */}
         <Link to={targetLink} className="block group mb-4">
-          <h3 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
-            {contract.projectTitle}
+          <h3 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors truncate">
+            {contract.projectTitle || contract.projectId?.title || 'Project'}
           </h3>
         </Link>
 
@@ -61,20 +86,24 @@ export function ContractCard({ contract, role = 'client' }) {
           </div>
         </div>
 
-        {/* Milestone Progress Bar */}
+        {/* Contract Status Indicator */}
         <div className="space-y-1.5 mb-5">
           <div className="flex items-center justify-between text-xs font-medium">
-            <span className="text-slate-600 dark:text-slate-400">
-              Milestone Progress ({completedMilestones}/{totalMilestones})
+            <span className="text-slate-600 dark:text-slate-400 capitalize">
+              {contract.status === 'active' ? 'In Progress' : contract.status.replace(/_/g, ' ')}
             </span>
-            <span className="font-bold text-slate-900 dark:text-white">{progressPercent}%</span>
+            <span className="font-bold text-slate-900 dark:text-white">
+              {contract.status === 'completed' ? '100%' : contract.status === 'active' ? '50%' : '0%'}
+            </span>
           </div>
           <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
             <div
               className={`h-full transition-all duration-500 rounded-full ${
-                contract.status === 'completed' ? 'bg-emerald-500' : 'bg-primary-600'
+                contract.status === 'completed' ? 'bg-emerald-500' : contract.status === 'active' ? 'bg-primary-600' : 'bg-amber-500'
               }`}
-              style={{ width: `${progressPercent}%` }}
+              style={{ 
+                width: contract.status === 'completed' ? '100%' : contract.status === 'active' ? '50%' : '0%' 
+              }}
             />
           </div>
         </div>
@@ -84,7 +113,7 @@ export function ContractCard({ contract, role = 'client' }) {
       <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
           <Shield className="w-3.5 h-3.5 text-emerald-500" />
-          <span>Escrow: {formatCurrency(contract.escrowBalance || 0)}</span>
+          <span>Escrow: {formatCurrency(escrowBalance)}</span>
         </div>
 
         <Link to={targetLink}>
@@ -96,3 +125,5 @@ export function ContractCard({ contract, role = 'client' }) {
     </div>
   );
 }
+
+export default ContractCard;

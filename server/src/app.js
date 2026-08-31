@@ -87,6 +87,11 @@ import messageRoutes from './routes/message.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
 import disputeRoutes from './routes/dispute.routes.js';
 import transactionRoutes from './routes/transaction.routes.js';
+import paymentRoutes from './routes/payment.routes.js';
+import deliveryRoutes from './routes/delivery.routes.js';
+import payoutMethodRoutes from './routes/payoutMethod.routes.js';
+import payoutRoutes from './routes/payout.routes.js';
+
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -103,6 +108,11 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/disputes', disputeRoutes);
 app.use('/api/transactions', transactionRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/deliveries', deliveryRoutes);
+app.use('/api/payout-methods', payoutMethodRoutes);
+app.use('/api/payouts', payoutRoutes);
+
 
 // ============ ERROR HANDLING ============
 

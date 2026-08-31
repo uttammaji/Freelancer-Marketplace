@@ -17,13 +17,15 @@ const router = express.Router();
 
 // Public routes
 router.get('/featured', cacheMiddleware('featured-portfolio', 300), getFeaturedPortfolio);
-router.get('/user/:userId', cacheMiddleware('user-portfolio', 300), getUserPortfolio);
-router.get('/:id', cacheMiddleware('portfolio', 300), getPortfolioById);
 
-// Freelancer only routes
-router.post('/', protect, isFreelancer, addPortfolioItem);
+// Freelancer routes - /my MUST be before /:id
 router.get('/my', protect, isFreelancer, getMyPortfolio);
+router.post('/', protect, isFreelancer, addPortfolioItem);
 router.put('/:id', protect, isFreelancer, updatePortfolioItem);
 router.delete('/:id', protect, isFreelancer, deletePortfolioItem);
+
+// Public routes with params
+router.get('/user/:userId', cacheMiddleware('user-portfolio', 300), getUserPortfolio);
+router.get('/:id', cacheMiddleware('portfolio', 300), getPortfolioById);
 
 export default router;

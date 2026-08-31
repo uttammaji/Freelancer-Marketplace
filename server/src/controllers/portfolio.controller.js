@@ -11,27 +11,32 @@ export const addPortfolioItem = asyncHandler(async (req, res, next) => {
     title,
     description,
     technologies,
-    projectUrl,
+    liveUrl,
     githubUrl,
-    images
+    images,
+    thumbnail,
+    categoryId,
   } = req.body;
 
   // Validate at least one URL is provided
-  if (!projectUrl && !githubUrl) {
-    throw new AppError('Please provide at least one URL (project or GitHub)', 400);
+  if (!liveUrl && !githubUrl) {
+    throw new AppError('Please provide at least one URL (live or GitHub)', 400);
   }
 
   const portfolio = await Portfolio.create({
-    userId: req.user.id,
+    freelancerId: req.user.id, 
     title,
     description,
     technologies,
-    projectUrl,
+    liveUrl,
     githubUrl,
-    images
+    images,
+    thumbnail,
+    categoryId,
   });
 
   await deleteCacheByPattern('portfolios:*');
+  
   res.status(201).json({
     success: true,
     message: 'Portfolio item added successfully',
@@ -43,9 +48,10 @@ export const addPortfolioItem = asyncHandler(async (req, res, next) => {
 // @route   GET /api/portfolio/my
 // @access  Private (Freelancer only)
 export const getMyPortfolio = asyncHandler(async (req, res, next) => {
-  const portfolio = await Portfolio.find({ userId: req.user.id })
+  const portfolio = await Portfolio.find({ freelancerId: req.user.id }) // ✅ Fixed
+    .populate('technologies', 'name')
+    .populate('categoryId', 'name')
     .sort({ createdAt: -1 });
-
 
   res.status(200).json({
     success: true,
@@ -58,10 +64,11 @@ export const getMyPortfolio = asyncHandler(async (req, res, next) => {
 // @route   GET /api/portfolio/user/:userId
 // @access  Public
 export const getUserPortfolio = asyncHandler(async (req, res, next) => {
-  const portfolio = await Portfolio.find({ userId: req.params.userId })
+  const portfolio = await Portfolio.find({ freelancerId: req.params.userId }) // ✅ Fixed
+    .populate('technologies', 'name')
+    .populate('categoryId', 'name')
     .sort({ createdAt: -1 });
 
-  
   res.status(200).json({
     success: true,
     count: portfolio.length,
@@ -74,7 +81,9 @@ export const getUserPortfolio = asyncHandler(async (req, res, next) => {
 // @access  Public
 export const getPortfolioById = asyncHandler(async (req, res, next) => {
   const portfolio = await Portfolio.findById(req.params.id)
-    .populate('userId', 'name email avatar');
+    .populate('freelancerId', 'name email avatar')
+    .populate('technologies', 'name')
+    .populate('categoryId', 'name');
 
   if (!portfolio) {
     throw new AppError('Portfolio item not found', 404);
@@ -97,7 +106,7 @@ export const updatePortfolioItem = asyncHandler(async (req, res, next) => {
   }
 
   // Check if user is the owner
-  if (portfolio.userId.toString() !== req.user.id) {
+  if (portfolio.freelancerId.toString() !== req.user.id) { // ✅ Fixed
     throw new AppError('Not authorized to update this portfolio item', 403);
   }
 
@@ -105,9 +114,11 @@ export const updatePortfolioItem = asyncHandler(async (req, res, next) => {
     title,
     description,
     technologies,
-    projectUrl,
+    liveUrl,
     githubUrl,
-    images
+    images,
+    thumbnail,
+    categoryId,
   } = req.body;
 
   portfolio = await Portfolio.findByIdAndUpdate(
@@ -116,9 +127,11 @@ export const updatePortfolioItem = asyncHandler(async (req, res, next) => {
       title: title || portfolio.title,
       description: description || portfolio.description,
       technologies: technologies || portfolio.technologies,
-      projectUrl: projectUrl || portfolio.projectUrl,
+      liveUrl: liveUrl || portfolio.liveUrl, 
       githubUrl: githubUrl || portfolio.githubUrl,
-      images: images || portfolio.images
+      images: images || portfolio.images,
+      thumbnail: thumbnail || portfolio.thumbnail,
+      categoryId: categoryId || portfolio.categoryId,
     },
     { new: true, runValidators: true }
   );
@@ -143,12 +156,13 @@ export const deletePortfolioItem = asyncHandler(async (req, res, next) => {
   }
 
   // Check if user is the owner
-  if (portfolio.userId.toString() !== req.user.id) {
+  if (portfolio.freelancerId.toString() !== req.user.id) { // ✅ Fixed
     throw new AppError('Not authorized to delete this portfolio item', 403);
   }
 
   await Portfolio.findByIdAndDelete(req.params.id);
   await deleteCacheByPattern('portfolios:*');
+
   res.status(200).json({
     success: true,
     message: 'Portfolio item deleted successfully'
@@ -160,11 +174,11 @@ export const deletePortfolioItem = asyncHandler(async (req, res, next) => {
 // @access  Public
 export const getFeaturedPortfolio = asyncHandler(async (req, res, next) => {
   const portfolio = await Portfolio.find({ isFeatured: true })
-    .populate('userId', 'name email avatar')
+    .populate('freelancerId', 'name email avatar')
+    .populate('technologies', 'name')
     .limit(6)
     .sort({ createdAt: -1 });
 
-  
   res.status(200).json({
     success: true,
     count: portfolio.length,

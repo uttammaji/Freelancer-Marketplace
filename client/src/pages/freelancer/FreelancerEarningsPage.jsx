@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+// client/src/pages/freelancer/FreelancerEarningsPage.jsx
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { useMarketplace } from '../../context/MarketplaceContext';
 import { useToast } from '../../context/ToastContext';
+import { getMyTransactions, getTransactionStats } from '../../services/transaction.service';
+import { getFreelancerPayments } from '../../services/payment.service';
+import { getMyPayoutMethods, createPayout, checkPayoutStatus } from '../../services/payout.service';
 import { StatCard } from '../../components/dashboard/StatCard';
 import { ChartCard } from '../../components/dashboard/ChartCard';
 import { TransactionCard } from '../../components/cards/TransactionCard';
@@ -11,14 +14,16 @@ import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { formatCurrency } from '../../utils/formatters';
 import {
-  DollarSign,
+  IndianRupee,
   ArrowUpRight,
   Shield,
   CreditCard,
-  Building,
-  CheckCircle2,
+  Loader2,
   Lock,
-  Download
+  Smartphone,
+  Landmark,
+  CheckCircle2,
+  Clock,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -33,50 +38,222 @@ import confetti from 'canvas-confetti';
 
 export function FreelancerEarningsPage() {
   const { currentUser } = useAuth();
-  const { transactions } = useMarketplace();
   const toast = useToast();
 
+  const [transactions, setTransactions] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [payoutMethods, setPayoutMethods] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
-  const [withdrawAmount, setWithdrawAmount] = useState(3610);
-  const [payoutMethod, setPayoutMethod] = useState('bank');
+  const [withdrawAmount, setWithdrawAmount] = useState(0);
+  const [selectedPayoutMethodId, setSelectedPayoutMethodId] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const pollIntervalRef = useRef(null);
 
-  const availableBalance = 4250.00;
-  const inEscrow = 1400.00;
-  const totalEarned = currentUser?.totalEarned || 84200;
+  // Fetch earnings data
+  const fetchEarningsData = useCallback(async () => {
+    try {
+      const [transactionsRes, paymentsRes, payoutMethodsRes] = await Promise.all([
+        getMyTransactions({ limit: 50 }),
+        getFreelancerPayments(),
+        getMyPayoutMethods(),
+      ]);
 
-  const earningsTimeline = [
-    { month: 'Mar', amount: 5200 },
-    { month: 'Apr', amount: 7400 },
-    { month: 'May', amount: 6800 },
-    { month: 'Jun', amount: 9500 },
-    { month: 'Jul', amount: 11800 },
-    { month: 'Aug', amount: 14200 }
-  ];
+      if (transactionsRes.success) {
+        setTransactions(transactionsRes.transactions || []);
+      }
 
-  const handleWithdrawal = (e) => {
+      if (paymentsRes.success) {
+        setPayments(paymentsRes.payments || []);
+      }
+
+      if (payoutMethodsRes.success) {
+        const methods = payoutMethodsRes.payoutMethods || [];
+        setPayoutMethods(methods);
+        const primary = methods.find(m => m.isPrimary);
+        if (primary) {
+          setSelectedPayoutMethodId(primary._id);
+        } else if (methods.length > 0) {
+          setSelectedPayoutMethodId(methods[0]._id);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch earnings:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchEarningsData();
+    
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, [fetchEarningsData]);
+
+  // ✅ CORRECTED STATS CALCULATION
+  const totalEarned = transactions
+    .filter(tx => tx.direction === 'credit' && tx.status === 'completed')
+    .reduce((sum, tx) => sum + tx.amount, 0);
+
+  const totalWithdrawn = transactions
+    .filter(tx => tx.direction === 'debit' && tx.status === 'completed')
+    .reduce((sum, tx) => sum + tx.amount, 0);
+
+  const pendingWithdrawal = transactions
+    .filter(tx => tx.direction === 'debit' && tx.status === 'pending')
+    .reduce((sum, tx) => sum + tx.amount, 0);
+
+  const availableBalance = totalEarned - totalWithdrawn - pendingWithdrawal;
+
+  // Escrow: payments still held
+const inEscrow = transactions
+  .filter(tx => tx.type === 'freelancer_earning' && tx.status === 'pending')
+  .reduce((sum, tx) => sum + tx.amount, 0);
+
+  // Generate earnings timeline
+  const generateEarningsData = (txList) => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const now = new Date();
+    const data = [];
+
+    for (let i = 5; i >= 0; i--) {
+      const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthKey = monthDate.toISOString().slice(0, 7);
+      const monthEarnings = txList
+        .filter(tx => {
+          const txDate = new Date(tx.createdAt);
+          return txDate.toISOString().slice(0, 7) === monthKey && 
+                 tx.direction === 'credit' && 
+                 tx.status === 'completed';
+        })
+        .reduce((sum, tx) => sum + tx.amount, 0);
+
+      data.push({
+        month: months[monthDate.getMonth()],
+        amount: monthEarnings,
+      });
+    }
+
+    return data;
+  };
+
+  const earningsTimeline = generateEarningsData(transactions);
+
+  // Map transaction
+  const mapTransaction = (tx) => ({
+    id: tx._id,
+    description: tx.description || '',
+    projectTitle: tx.projectId?.title || '',
+    amount: tx.amount,
+    type: tx.type,
+    status: tx.status,
+    direction: tx.direction,
+    date: tx.createdAt,
+    paymentMethod: tx.direction === 'credit' ? 'Escrow Release' : 
+                   tx.type === 'withdrawal' ? 'Payout' : 'Platform Fee',
+  });
+
+  // Poll payout status
+  const pollPayoutStatus = useCallback((payoutId) => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+    }
+
+    pollIntervalRef.current = setInterval(async () => {
+      try {
+        const response = await checkPayoutStatus(payoutId);
+        
+        if (response.success) {
+          const status = response.payout.status;
+          
+          if (status === 'processed') {
+            clearInterval(pollIntervalRef.current);
+            toast.success('Payout Completed!', 'Money sent to your account.');
+            fetchEarningsData();
+          }
+          
+          if (['rejected', 'failed', 'reversed'].includes(status)) {
+            clearInterval(pollIntervalRef.current);
+            toast.error('Payout Failed', response.payout.failureReason || 'Payout could not be processed.');
+            fetchEarningsData();
+          }
+        }
+      } catch (error) {
+        clearInterval(pollIntervalRef.current);
+        console.error('Polling failed:', error);
+      }
+    }, 5000);
+  }, [toast, fetchEarningsData]);
+
+  // Handle withdrawal
+  const handleWithdrawal = async (e) => {
     e.preventDefault();
-    if (withdrawAmount <= 0 || withdrawAmount > availableBalance) {
-      toast.warning('Invalid Amount', `Please enter an amount up to ${formatCurrency(availableBalance)}`);
+    
+    if (withdrawAmount <= 0) {
+      toast.warning('Invalid Amount', 'Please enter a valid amount.');
+      return;
+    }
+
+    if (withdrawAmount > availableBalance) {
+      toast.warning('Insufficient Balance', `You can withdraw up to ${formatCurrency(availableBalance)}`);
+      return;
+    }
+
+    if (withdrawAmount < 100) {
+      toast.warning('Minimum Withdrawal', 'Minimum withdrawal amount is ₹100.');
+      return;
+    }
+
+    if (!selectedPayoutMethodId) {
+      toast.warning('No Payout Method', 'Please select a payout method.');
       return;
     }
 
     setIsProcessing(true);
-    setTimeout(() => {
-      try {
-        confetti({
-          particleCount: 80,
-          spread: 70,
-          origin: { y: 0.6 }
-        });
-      } catch (e) {
-        console.log(e);
+
+    try {
+      const response = await createPayout({
+        amount: withdrawAmount,
+        payoutMethodId: selectedPayoutMethodId,
+      });
+
+      if (response.success) {
+        try {
+          confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
+        } catch (e) {
+          console.log('Confetti unavailable');
+        }
+
+        toast.success('Payout Initiated!', `${formatCurrency(withdrawAmount)} is being processed.`);
+        setIsWithdrawModalOpen(false);
+        setWithdrawAmount(0);
+        
+        pollPayoutStatus(response.payout.id);
+        fetchEarningsData();
       }
+    } catch (error) {
+      console.error('Payout failed:', error);
+      toast.error('Payout Failed', error.response?.data?.message || 'Could not process payout.');
+    } finally {
       setIsProcessing(false);
-      toast.success('Payout Initiated! 💸', `${formatCurrency(withdrawAmount)} has been scheduled for transfer to your payout method.`);
-      setIsWithdrawModalOpen(false);
-    }, 700);
+    }
   };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 text-primary-600 animate-spin mx-auto mb-4" />
+          <p className="text-sm text-slate-500">Loading earnings...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 pb-12">
@@ -97,21 +274,30 @@ export function FreelancerEarningsPage() {
           size="md"
           icon={ArrowUpRight}
           className="font-bold shadow-md"
-          onClick={() => setIsWithdrawModalOpen(true)}
+          onClick={() => {
+            setWithdrawAmount(availableBalance);
+            setIsWithdrawModalOpen(true);
+          }}
+          disabled={payoutMethods.length === 0 || availableBalance <= 0}
         >
-          Withdraw Available Funds ({formatCurrency(availableBalance)})
+          {payoutMethods.length === 0 
+            ? 'Add Payout Method First' 
+            : availableBalance <= 0 
+              ? 'No Balance to Withdraw' 
+              : `Withdraw (${formatCurrency(availableBalance)})`}
         </Button>
       </div>
 
-      {/* 3 Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+      {/* 4 Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <StatCard
           title="Available for Withdrawal"
           value={formatCurrency(availableBalance)}
-          isPositive={true}
-          change="Instant Payout Ready"
-          icon={DollarSign}
+          isPositive={availableBalance > 0}
+          change={pendingWithdrawal > 0 ? `${formatCurrency(pendingWithdrawal)} processing` : 'Ready to withdraw'}
+          icon={IndianRupee}
           color="emerald"
+          subtitle="Net of fees and pending payouts"
         />
         <StatCard
           title="Pending in Escrow"
@@ -123,19 +309,32 @@ export function FreelancerEarningsPage() {
         <StatCard
           title="Lifetime Total Earned"
           value={formatCurrency(totalEarned)}
-          change="+24% YoY"
+          change={`${transactions.length} transactions`}
           isPositive={true}
           icon={CreditCard}
           color="purple"
           subtitle="All completed contracts"
         />
+        <StatCard
+          title="Total Withdrawn"
+          value={formatCurrency(totalWithdrawn)}
+          change={pendingWithdrawal > 0 ? `${formatCurrency(pendingWithdrawal)} pending` : 'All completed'}
+          isPositive={false}
+          icon={ArrowUpRight}
+          color="amber"
+          subtitle="Lifetime payouts"
+        />
       </div>
 
-      {/* Recharts Area Graph */}
+      {/* Earnings Chart */}
       <ChartCard
         title="Historical Monthly Revenue"
-        subtitle="Cumulative monthly earnings credited to your balance"
-        action={<span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg">5% Take-Rate Protected</span>}
+        subtitle="Monthly earnings credited to your balance"
+        action={
+          <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg">
+            5% Platform Fee
+          </span>
+        }
       >
         <div className="h-64 sm:h-72 w-full pt-2">
           <ResponsiveContainer width="100%" height="100%">
@@ -148,114 +347,123 @@ export function FreelancerEarningsPage() {
               </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />
               <XAxis dataKey="month" stroke="#94A3B8" fontSize={11} tickLine={false} axisLine={false} />
-              <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v}`} />
+              <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v / 1000}k`} />
               <Tooltip
-                contentStyle={{
-                  backgroundColor: '#0F172A',
-                  borderColor: '#334155',
-                  borderRadius: '12px',
-                  color: '#FFF',
-                  fontSize: '12px'
-                }}
-                formatter={(value) => [`$${value.toLocaleString()}`, 'Net Revenue']}
+                contentStyle={{ backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: '#FFF', fontSize: '12px' }}
+                formatter={(value) => [`₹${value.toLocaleString('en-IN')}`, 'Net Revenue']}
               />
-              <Area
-                type="monotone"
-                dataKey="amount"
-                stroke="#10B981"
-                strokeWidth={3}
-                fillOpacity={1}
-                fill="url(#earningsGrad)"
-              />
+              <Area type="monotone" dataKey="amount" stroke="#10B981" strokeWidth={3} fillOpacity={1} fill="url(#earningsGrad)" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
       </ChartCard>
 
       {/* Payout Methods */}
-      <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-soft space-y-4">
-        <h3 className="text-base font-bold text-slate-900 dark:text-white">Active Payout Methods</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="p-4 rounded-2xl border-2 border-emerald-500/40 bg-emerald-50/20 dark:bg-emerald-950/20 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-slate-900 text-white">
-                <Building className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="text-xs font-bold text-slate-900 dark:text-white block">Direct Bank Transfer (HDFC)</span>
-                <span className="text-[11px] text-slate-400">Account ending in •••• 9104</span>
-              </div>
-            </div>
-            <Badge variant="success" size="sm">Primary</Badge>
+      {payoutMethods.length > 0 && (
+        <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-soft space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-bold text-slate-900 dark:text-white">Payout Methods</h3>
+            <Badge variant="success" size="sm">{payoutMethods.length} active</Badge>
           </div>
 
-          <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-sky-50 dark:bg-sky-950 text-sky-600 dark:text-sky-400">
-                <CreditCard className="w-5 h-5" />
+          <div className="space-y-3">
+            {payoutMethods.map((method) => (
+              <div
+                key={method._id}
+                className={`p-4 rounded-2xl flex items-center gap-3 cursor-pointer transition-all ${
+                  selectedPayoutMethodId === method._id
+                    ? 'border-2 border-emerald-500/40 bg-emerald-50/20 dark:bg-emerald-950/20'
+                    : 'border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
+                }`}
+                onClick={() => setSelectedPayoutMethodId(method._id)}
+              >
+                <div className={`p-2.5 rounded-xl ${method.type === 'upi' ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-600' : 'bg-primary-100 dark:bg-primary-950 text-primary-600'}`}>
+                  {method.type === 'upi' ? <Smartphone className="w-5 h-5" /> : <Landmark className="w-5 h-5" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                    {method.type === 'upi' ? method.displayInfo || method.upiId : `${method.bankName} ••••${method.accountNumber?.slice(-4)}`}
+                  </span>
+                  <span className="text-[11px] text-slate-400 capitalize">{method.type}</span>
+                </div>
+                {method.isPrimary && <Badge variant="success" size="sm">Primary</Badge>}
               </div>
-              <div>
-                <span className="text-xs font-bold text-slate-900 dark:text-white block">PayPal International</span>
-                <span className="text-[11px] text-slate-400">rahul.sharma@devstack.io</span>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Payout History */}
+      {/* Transaction History */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-slate-900 dark:text-white">Recent Transactions & Payouts</h2>
-          <span className="text-xs text-slate-400">{transactions.length} Records</span>
+          <span className="text-xs text-slate-400">{transactions.length} records</span>
         </div>
 
-        <div className="space-y-3">
-          {transactions.map((tx) => (
-            <TransactionCard key={tx.id} tx={tx} />
-          ))}
-        </div>
+        {transactions.length > 0 ? (
+          <div className="space-y-3">
+            {transactions.map((tx) => (
+              <TransactionCard key={tx._id} tx={mapTransaction(tx)} />
+            ))}
+          </div>
+        ) : (
+          <div className="p-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-center">
+            <IndianRupee className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+            <p className="text-sm text-slate-500">No transactions yet.</p>
+          </div>
+        )}
       </div>
 
-      {/* Payout Withdrawal Modal */}
+      {/* Withdrawal Modal */}
       <Modal
         isOpen={isWithdrawModalOpen}
         onClose={() => setIsWithdrawModalOpen(false)}
         title="Withdraw Available Funds"
-        subtitle={`Available for transfer: ${formatCurrency(availableBalance)}`}
+        subtitle={`Available: ${formatCurrency(availableBalance)}`}
         maxWidth="max-w-md"
       >
         <form onSubmit={handleWithdrawal} className="space-y-4">
           <Input
-            label="Withdrawal Amount ($ USD)"
+            label="Withdrawal Amount (₹ INR)"
             type="number"
             value={withdrawAmount}
             onChange={(e) => setWithdrawAmount(Number(e.target.value))}
-            icon={DollarSign}
+            icon={IndianRupee}
             max={availableBalance}
-            min={50}
+            min={100}
             required
-            helperText="Zero withdrawal transfer fees on bank transfers."
+            helperText={`Minimum: ₹100 • Maximum: ${formatCurrency(availableBalance)}`}
           />
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
-              Destination
-            </label>
-            <div className="space-y-2">
-              <label className="flex items-center justify-between p-3 rounded-xl border border-emerald-500/40 bg-emerald-50/20 cursor-pointer">
-                <span className="text-xs font-bold text-slate-900 dark:text-white">Direct Bank (•••• 9104)</span>
-                <input type="radio" name="payoutMethod" checked={payoutMethod === 'bank'} onChange={() => setPayoutMethod('bank')} />
+          {payoutMethods.length > 0 && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                Payout Destination
               </label>
-              <label className="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-700 cursor-pointer">
-                <span className="text-xs font-bold text-slate-900 dark:text-white">PayPal</span>
-                <input type="radio" name="payoutMethod" checked={payoutMethod === 'paypal'} onChange={() => setPayoutMethod('paypal')} />
-              </label>
+              <select
+                value={selectedPayoutMethodId}
+                onChange={(e) => setSelectedPayoutMethodId(e.target.value)}
+                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm"
+              >
+                {payoutMethods.map((method) => (
+                  <option key={method._id} value={method._id}>
+                    {method.type === 'upi' 
+                      ? `UPI: ${method.displayInfo || method.upiId}` 
+                      : `${method.bankName} ••••${method.accountNumber?.slice(-4)}`}
+                    {method.isPrimary ? ' (Primary)' : ''}
+                  </option>
+                ))}
+              </select>
             </div>
+          )}
+
+          <div className="p-3 bg-slate-50 dark:bg-slate-850/60 rounded-xl flex items-center gap-2 text-xs">
+            <Lock className="w-4 h-4 text-emerald-600" />
+            <span>Funds transferred via Razorpay Payout within 24-48 hours.</span>
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-            <Button variant="outline" onClick={() => setIsWithdrawModalOpen(false)} disabled={isProcessing}>
+            <Button type="button" variant="outline" onClick={() => setIsWithdrawModalOpen(false)} disabled={isProcessing}>
               Cancel
             </Button>
             <Button type="submit" variant="primary" icon={ArrowUpRight} isLoading={isProcessing}>
@@ -267,3 +475,5 @@ export function FreelancerEarningsPage() {
     </div>
   );
 }
+
+export default FreelancerEarningsPage;

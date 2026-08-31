@@ -1,6 +1,12 @@
-import React from 'react';
+// client/src/pages/admin/AdminDashboard.jsx
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { useMarketplace } from '../../context/MarketplaceContext';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
+import { getAllProjectsAdmin } from '../../services/project.service';
+import { getAllDisputes, getDisputeStats } from '../../services/dispute.service';
+import { getAllFreelancers, getAllClients } from '../../services/profile.service';
+import { getContractStats } from '../../services/contract.service';
 import { StatCard } from '../../components/dashboard/StatCard';
 import { ChartCard } from '../../components/dashboard/ChartCard';
 import { DisputeCard } from '../../components/cards/DisputeCard';
@@ -8,15 +14,12 @@ import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { formatCurrency } from '../../utils/formatters';
 import {
-  Shield,
   Users,
   Briefcase,
   DollarSign,
   Scale,
   TrendingUp,
-  ArrowRight,
-  CheckCircle2,
-  AlertTriangle
+  Loader2,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -31,21 +34,100 @@ import {
 } from 'recharts';
 
 export function AdminDashboard() {
-  const { usersList, projects, contracts, disputes, transactions } = useMarketplace();
+  const { currentUser } = useAuth();
+  const toast = useToast();
 
-  const openDisputes = disputes.filter(d => d.status === 'open');
-  const totalVolume = 184500.00;
-  const platformRevenue = totalVolume * 0.05; // $9,225 take rate
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalFreelancers: 0,
+    totalClients: 0,
+    totalProjects: 0,
+    openDisputes: 0,
+    totalDisputes: 0,
+    activeContracts: 0,
+    completedContracts: 0,
+    totalVolume: 0,
+  });
+  const [recentDisputes, setRecentDisputes] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Growth data
+  // Fetch all admin stats
+  const fetchStats = useCallback(async () => {
+    setIsLoading(true);
+    
+    try {
+      const [
+        freelancersRes,
+        clientsRes,
+        projectsRes,
+        disputeStatsRes,
+        disputesRes,
+        contractStatsRes,
+      ] = await Promise.all([
+        getAllFreelancers({ limit: 1 }),
+        getAllClients({ limit: 1 }),
+        getAllProjectsAdmin({ limit: 1 }),
+        getDisputeStats(),
+        getAllDisputes({ limit: 5 }),
+        getContractStats(),
+      ]);
+
+      const totalFreelancers = freelancersRes.total || freelancersRes.profiles?.length || 0;
+      const totalClients = clientsRes.total || clientsRes.profiles?.length || 0;
+      const totalProjects = projectsRes.total || projectsRes.projects?.length || 0;
+      const totalUsers = totalFreelancers + totalClients;
+
+      setStats({
+        totalUsers,
+        totalFreelancers,
+        totalClients,
+        totalProjects,
+        openDisputes: disputeStatsRes.stats?.open || 0,
+        totalDisputes: disputeStatsRes.stats?.total || 0,
+        activeContracts: contractStatsRes.stats?.active || 0,
+        completedContracts: contractStatsRes.stats?.completed || 0,
+        totalVolume: contractStatsRes.stats?.totalEarnings || 0,
+      });
+
+      if (disputesRes.success) {
+        setRecentDisputes(disputesRes.disputes || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch admin stats:', error);
+      toast.error('Load Failed', 'Could not load dashboard stats.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
+  // Calculate platform revenue (5%)
+  const platformRevenue = stats.totalVolume * 0.05;
+
+  // Chart data (static for now - can be dynamic later)
   const revenueGrowthData = [
     { month: 'Mar', gmv: 42000, revenue: 2100 },
     { month: 'Apr', gmv: 68000, revenue: 3400 },
     { month: 'May', gmv: 85000, revenue: 4250 },
     { month: 'Jun', gmv: 110000, revenue: 5500 },
     { month: 'Jul', gmv: 145000, revenue: 7250 },
-    { month: 'Aug', gmv: 184500, revenue: 9225 }
+    { month: 'Aug', gmv: stats.totalVolume || 184500, revenue: (stats.totalVolume * 0.05) || 9225 },
   ];
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-primary-600 animate-spin mx-auto mb-4" />
+          <p className="text-sm text-slate-500">Loading platform operations...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 pb-12">
@@ -57,14 +139,14 @@ export function AdminDashboard() {
             SkillHire Platform Operations
           </h1>
           <p className="text-xs text-purple-200">
-            Real-time platform GMV, dispute arbitrations, escrow security & moderation
+            Real-time platform stats, dispute arbitrations & escrow security
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <Link to="/admin/disputes">
             <Button variant="danger" size="sm" icon={Scale}>
-              {openDisputes.length} Active Disputes
+              {stats.openDisputes} Active Disputes
             </Button>
           </Link>
         </div>
@@ -74,12 +156,12 @@ export function AdminDashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <StatCard
           title="Platform GMV (Volume)"
-          value={formatCurrency(totalVolume)}
-          change="+28% MoM"
+          value={formatCurrency(stats.totalVolume)}
+          change="Total transacted"
           isPositive={true}
           icon={TrendingUp}
           color="emerald"
-          subtitle="Total transacted across marketplace"
+          subtitle="Across all contracts"
         />
         <StatCard
           title="Platform Revenue (5%)"
@@ -92,27 +174,46 @@ export function AdminDashboard() {
         />
         <StatCard
           title="Total Registered Users"
-          value={usersList.length || 18}
-          change="+12 this week"
+          value={stats.totalUsers}
+          change={`${stats.totalFreelancers} freelancers • ${stats.totalClients} clients`}
           isPositive={true}
           icon={Users}
           color="primary"
-          subtitle="Clients, freelancers, admins"
+          subtitle="All platform accounts"
         />
         <StatCard
           title="Open Dispute Cases"
-          value={openDisputes.length}
-          change={openDisputes.length > 0 ? 'Requires arbitration' : 'Zero disputes'}
-          isPositive={openDisputes.length === 0}
+          value={stats.openDisputes}
+          change={stats.openDisputes > 0 ? 'Requires arbitration' : 'Zero disputes'}
+          isPositive={stats.openDisputes === 0}
           icon={Scale}
           color="rose"
           subtitle="Escrow mediation queue"
         />
       </div>
 
+      {/* Additional Stats Row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-center">
+          <span className="text-xs text-slate-400 block mb-1">Total Projects</span>
+          <span className="text-xl font-extrabold text-slate-900 dark:text-white">{stats.totalProjects}</span>
+        </div>
+        <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-center">
+          <span className="text-xs text-slate-400 block mb-1">Active Contracts</span>
+          <span className="text-xl font-extrabold text-slate-900 dark:text-white">{stats.activeContracts}</span>
+        </div>
+        <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-center">
+          <span className="text-xs text-slate-400 block mb-1">Completed Contracts</span>
+          <span className="text-xl font-extrabold text-slate-900 dark:text-white">{stats.completedContracts}</span>
+        </div>
+        <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-center">
+          <span className="text-xs text-slate-400 block mb-1">Total Disputes</span>
+          <span className="text-xl font-extrabold text-slate-900 dark:text-white">{stats.totalDisputes}</span>
+        </div>
+      </div>
+
       {/* Analytics Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* GMV Growth */}
         <ChartCard
           title="Monthly Platform GMV & Volume"
           subtitle="Gross marketplace merchandise value in USD"
@@ -139,7 +240,6 @@ export function AdminDashboard() {
           </div>
         </ChartCard>
 
-        {/* 5% Fee Revenue */}
         <ChartCard
           title="Net 5% Commission Revenue"
           subtitle="SkillHire platform income after escrow releases"
@@ -161,27 +261,46 @@ export function AdminDashboard() {
         </ChartCard>
       </div>
 
-      {/* Urgent Dispute Cases */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Scale className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-              <span>Dispute Resolution Center</span>
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Escrow conflicts requiring administrator decision</p>
-          </div>
-          <Link to="/admin/disputes" className="text-xs font-bold text-purple-600 dark:text-purple-400 hover:underline">
-            View All Disputes
-          </Link>
-        </div>
-
+      {/* Recent Disputes */}
+      {recentDisputes.length > 0 && (
         <div className="space-y-4">
-          {disputes.slice(0, 2).map((disp) => (
-            <DisputeCard key={disp.id} dispute={disp} />
-          ))}
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Scale className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                <span>Recent Disputes</span>
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Escrow conflicts requiring administrator decision</p>
+            </div>
+            <Link to="/admin/disputes" className="text-xs font-bold text-purple-600 dark:text-purple-400 hover:underline">
+              View All Disputes
+            </Link>
+          </div>
+
+          <div className="space-y-4">
+            {recentDisputes.slice(0, 2).map((dispute) => (
+              <DisputeCard
+                key={dispute._id}
+                dispute={{
+                  id: dispute._id,
+                  reason: dispute.reason,
+                  description: dispute.description,
+                  status: dispute.status,
+                  projectTitle: dispute.projectId?.title || 'Project',
+                  openedByName: dispute.openedBy?.name || 'User',
+                  againstName: dispute.against?.name || 'User',
+                  createdAt: dispute.createdAt,
+                  resolution: dispute.resolution,
+                  adminNote: dispute.adminNote,
+                }}
+                isAdminView={true}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
+
+export default AdminDashboard;

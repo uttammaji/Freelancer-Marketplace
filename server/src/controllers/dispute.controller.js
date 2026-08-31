@@ -2,12 +2,16 @@
 import { Dispute } from '../models/dispute.model.js';
 import { Contract } from '../models/contract.model.js';
 import { Project } from '../models/project.model.js';
+import { User } from '../models/user.models.js';
 import { AppError, asyncHandler } from '../middleware/error.middleware.js';
 import { deleteCacheByPattern } from '../utils/cache.utils.js';
+import { sendEmail } from '../utils/sendEmail.js';
 
-// @desc    Create dispute
-// @route   POST /api/disputes
-// @access  Private
+/**
+ * Create dispute
+ * @route POST /api/disputes
+ * @access Private
+ */
 export const createDispute = asyncHandler(async (req, res, next) => {
   const { contractId, reason, description, evidence } = req.body;
 
@@ -20,7 +24,6 @@ export const createDispute = asyncHandler(async (req, res, next) => {
     throw new AppError('Contract not found', 404);
   }
 
-  // Check if user is part of contract
   const isClient = contract.clientId.toString() === req.user.id;
   const isFreelancer = contract.freelancerId.toString() === req.user.id;
 
@@ -28,10 +31,8 @@ export const createDispute = asyncHandler(async (req, res, next) => {
     throw new AppError('Not authorized to open dispute for this contract', 403);
   }
 
-  // Determine who dispute is against
   const against = isClient ? contract.freelancerId : contract.clientId;
 
-  // Check existing dispute
   const existingDispute = await Dispute.findOne({ 
     contractId, 
     status: { $in: ['open', 'under_review'] } 
@@ -41,7 +42,6 @@ export const createDispute = asyncHandler(async (req, res, next) => {
     throw new AppError('Dispute already exists for this contract', 400);
   }
 
-  // Create dispute
   const dispute = await Dispute.create({
     projectId: contract.projectId,
     contractId,
@@ -53,11 +53,45 @@ export const createDispute = asyncHandler(async (req, res, next) => {
     status: 'open',
   });
 
-  // Update contract
   contract.status = 'disputed';
   await contract.save();
 
   await deleteCacheByPattern('disputes:*');
+  await deleteCacheByPattern('contracts:*');
+
+  // Send email to both parties
+  try {
+    const openedByUser = req.user;
+    const againstUser = await User.findById(against);
+
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #ef4444;">Dispute Opened</h2>
+        <p>A dispute has been opened for contract.</p>
+        <div style="background: #fef2f2; padding: 16px; border-radius: 8px; margin: 16px 0;">
+          <p style="margin: 0;"><strong>Reason:</strong> ${reason.replace(/_/g, ' ')}</p>
+          <p style="margin: 8px 0 0;"><strong>Description:</strong> ${description}</p>
+        </div>
+        <p>Our admin team will review the dispute and respond shortly.</p>
+      </div>
+    `;
+
+    if (againstUser) {
+      sendEmail({
+        email: againstUser.email,
+        subject: 'Dispute Opened Against You',
+        html: emailHtml,
+      });
+    }
+
+    sendEmail({
+      email: openedByUser.email,
+      subject: 'Dispute Opened Successfully',
+      html: emailHtml,
+    });
+  } catch (emailError) {
+    console.error('Dispute email failed:', emailError.message);
+  }
 
   res.status(201).json({
     success: true,
@@ -66,9 +100,11 @@ export const createDispute = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get all disputes (Admin)
-// @route   GET /api/disputes
-// @access  Admin
+/**
+ * Get all disputes (Admin)
+ * @route GET /api/disputes
+ * @access Admin
+ */
 export const getAllDisputes = asyncHandler(async (req, res, next) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
@@ -99,9 +135,11 @@ export const getAllDisputes = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get dispute statistics (Admin)
-// @route   GET /api/disputes/stats
-// @access  Admin
+/**
+ * Get dispute stats (Admin)
+ * @route GET /api/disputes/stats
+ * @access Admin
+ */
 export const getDisputeStats = asyncHandler(async (req, res, next) => {
   const [total, open, underReview, resolved, closed] = await Promise.all([
     Dispute.countDocuments(),
@@ -123,9 +161,11 @@ export const getDisputeStats = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get my disputes
-// @route   GET /api/disputes/my
-// @access  Private
+/**
+ * Get my disputes
+ * @route GET /api/disputes/my
+ * @access Private
+ */
 export const getMyDisputes = asyncHandler(async (req, res, next) => {
   const disputes = await Dispute.find({
     $or: [
@@ -146,9 +186,11 @@ export const getMyDisputes = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get single dispute
-// @route   GET /api/disputes/:id
-// @access  Private
+/**
+ * Get single dispute
+ * @route GET /api/disputes/:id
+ * @access Private
+ */
 export const getDisputeById = asyncHandler(async (req, res, next) => {
   const dispute = await Dispute.findById(req.params.id)
     .populate('projectId', 'title')
@@ -175,9 +217,11 @@ export const getDisputeById = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Update dispute (openedBy)
-// @route   PUT /api/disputes/:id
-// @access  Private
+/**
+ * Update dispute
+ * @route PUT /api/disputes/:id
+ * @access Private (OpenedBy)
+ */
 export const updateDispute = asyncHandler(async (req, res, next) => {
   let dispute = await Dispute.findById(req.params.id);
 
@@ -214,9 +258,11 @@ export const updateDispute = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Resolve dispute (Admin)
-// @route   PATCH /api/disputes/:id/resolve
-// @access  Admin
+/**
+ * Resolve dispute (Admin)
+ * @route PATCH /api/disputes/:id/resolve
+ * @access Admin
+ */
 export const resolveDispute = asyncHandler(async (req, res, next) => {
   const { resolution, adminNote } = req.body;
 
@@ -241,7 +287,6 @@ export const resolveDispute = asyncHandler(async (req, res, next) => {
   dispute.resolvedAt = new Date();
   await dispute.save();
 
-  // Update contract
   const contract = await Contract.findById(dispute.contractId);
   if (contract) {
     if (resolution === 'refund_client') {
@@ -256,6 +301,41 @@ export const resolveDispute = asyncHandler(async (req, res, next) => {
   await deleteCacheByPattern('disputes:*');
   await deleteCacheByPattern('contracts:*');
 
+  // Send resolution email to both parties
+  try {
+    const openedByUser = await User.findById(dispute.openedBy);
+    const againstUser = await User.findById(dispute.against);
+
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #10b981;">Dispute Resolved</h2>
+        <p>The dispute has been resolved.</p>
+        <div style="background: #f0fdf4; padding: 16px; border-radius: 8px; margin: 16px 0;">
+          <p style="margin: 0;"><strong>Resolution:</strong> ${resolution.replace(/_/g, ' ')}</p>
+          ${adminNote ? `<p style="margin: 8px 0 0;"><strong>Admin Note:</strong> ${adminNote}</p>` : ''}
+        </div>
+      </div>
+    `;
+
+    if (openedByUser) {
+      sendEmail({
+        email: openedByUser.email,
+        subject: 'Dispute Resolved',
+        html: emailHtml,
+      });
+    }
+
+    if (againstUser) {
+      sendEmail({
+        email: againstUser.email,
+        subject: 'Dispute Resolved',
+        html: emailHtml,
+      });
+    }
+  } catch (emailError) {
+    console.error('Dispute resolution email failed:', emailError.message);
+  }
+
   res.status(200).json({
     success: true,
     message: 'Dispute resolved successfully',
@@ -263,9 +343,11 @@ export const resolveDispute = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Close dispute
-// @route   PATCH /api/disputes/:id/close
-// @access  Private (openedBy)
+/**
+ * Close dispute
+ * @route PATCH /api/disputes/:id/close
+ * @access Private (OpenedBy)
+ */
 export const closeDispute = asyncHandler(async (req, res, next) => {
   const dispute = await Dispute.findById(req.params.id);
 
@@ -285,14 +367,14 @@ export const closeDispute = asyncHandler(async (req, res, next) => {
   dispute.resolvedAt = new Date();
   await dispute.save();
 
-  // Restore contract
   const contract = await Contract.findById(dispute.contractId);
   if (contract) {
-    contract.status = 'in_progress';
+    contract.status = 'active';
     await contract.save();
   }
 
   await deleteCacheByPattern('disputes:*');
+  await deleteCacheByPattern('contracts:*');
 
   res.status(200).json({
     success: true,

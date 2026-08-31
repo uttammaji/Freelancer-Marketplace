@@ -1,33 +1,67 @@
+// client/src/components/project/RequestRevisionModal.jsx
 import React, { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { Textarea } from '../common/Textarea';
 import { Button } from '../common/Button';
-import { useMarketplace } from '../../context/MarketplaceContext';
+import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { requestRevision } from '../../services/delivery.service';
 import { AlertCircle, Send } from 'lucide-react';
 
-export function RequestRevisionModal({ isOpen, onClose, contract, milestone }) {
-  const { requestMilestoneRevision } = useMarketplace();
+export function RequestRevisionModal({ isOpen, onClose, contract, milestone, delivery, onConfirm }) {
+  const { currentUser } = useAuth();
   const toast = useToast();
+  
   const [feedback, setFeedback] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!contract || !milestone) return null;
+  // Support both old (milestone) and new (delivery) props
+  const target = delivery || milestone;
+  const contractId = contract?.id || contract?._id;
+  const deliveryId = delivery?._id || milestone?.id;
 
-  const handleSubmit = (e) => {
+  if (!target) return null;
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    
     if (!feedback.trim()) {
       toast.warning('Feedback Required', 'Please specify the exact changes or fixes needed.');
       return;
     }
 
-    setIsSubmitting(true);
-    setTimeout(() => {
-      requestMilestoneRevision(contract.id, milestone.id, feedback);
+    // If onConfirm provided, use it (parent handles API)
+    if (onConfirm) {
+      setIsSubmitting(true);
+      await onConfirm(feedback.trim());
       setIsSubmitting(false);
-      toast.info('Revision Requested', 'Your feedback was sent to the freelancer.');
-      onClose();
-    }, 500);
+      return;
+    }
+
+    // Otherwise call API directly
+    if (!deliveryId) {
+      toast.error('Error', 'Delivery information is missing.');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await requestRevision(deliveryId, {
+        feedback: feedback.trim()
+      });
+
+      if (response.success) {
+        toast.success('Revision Requested', 'Your feedback was sent to the freelancer.');
+        setFeedback('');
+        onClose();
+      }
+    } catch (error) {
+      console.error('Failed to request revision:', error);
+      toast.error('Request Failed', error.response?.data?.message || 'Could not request revision.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -35,7 +69,7 @@ export function RequestRevisionModal({ isOpen, onClose, contract, milestone }) {
       isOpen={isOpen}
       onClose={onClose}
       title="Request Changes / Revision"
-      subtitle={`Milestone: ${milestone.title}`}
+      subtitle={target.title ? `Delivery: ${target.title}` : 'Request modifications'}
       maxWidth="max-w-lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -50,13 +84,13 @@ export function RequestRevisionModal({ isOpen, onClose, contract, milestone }) {
           label="Revision Feedback & Requirements"
           value={feedback}
           onChange={(e) => setFeedback(e.target.value)}
-          placeholder="e.g. Please update the button hover states on mobile and fix the token count chart axis formatting on tablet view..."
+          placeholder="e.g. Please update the button hover states on mobile and fix the chart axis formatting on tablet view..."
           rows={5}
           required
         />
 
         <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-          <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
+          <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
           <Button type="submit" variant="primary" icon={Send} isLoading={isSubmitting}>
@@ -67,3 +101,5 @@ export function RequestRevisionModal({ isOpen, onClose, contract, milestone }) {
     </Modal>
   );
 }
+
+export default RequestRevisionModal;

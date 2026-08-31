@@ -1,3 +1,4 @@
+// client/src/components/project/HireFreelancerModal.jsx
 import React, { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
@@ -5,77 +6,187 @@ import { Avatar } from '../common/Avatar';
 import { Badge } from '../common/Badge';
 import { formatCurrency } from '../../utils/formatters';
 import { useAuth } from '../../context/AuthContext';
-import { useMarketplace } from '../../context/MarketplaceContext';
 import { useToast } from '../../context/ToastContext';
-import { ShieldCheck, Lock, CreditCard, Sparkles, CheckCircle2 } from 'lucide-react';
+import { createContract } from '../../services/contract.service';
+import { acceptProposal } from '../../services/proposal.service';
+import { createPaymentOrder, verifyPayment } from '../../services/payment.service';
+import { ShieldCheck, Lock, CreditCard } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useNavigate } from 'react-router-dom';
 
-export function HireFreelancerModal({ isOpen, onClose, proposal, project, freelancer }) {
+export function HireFreelancerModal({ isOpen, onClose, proposal, project, freelancer, onHireConfirmed }) {
   const { currentUser } = useAuth();
-  const { hireFreelancerAndCreateContract } = useMarketplace();
   const toast = useToast();
   const navigate = useNavigate();
 
-  const [paymentMethod, setPaymentMethod] = useState('card_primary');
   const [agreedTerms, setAgreedTerms] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
 
   if (!proposal && !freelancer) return null;
 
+  // Target freelancer info
   const targetFreelancer = freelancer || {
-    id: proposal.freelancerId,
-    name: proposal.freelancerName,
-    avatar: proposal.freelancerAvatar,
-    title: proposal.freelancerTitle,
-    hourlyRate: 65
+    id: proposal.freelancerId?._id || proposal.freelancerId,
+    name: proposal.freelancerName || proposal.freelancerId?.name || 'Freelancer',
+    avatar: proposal.freelancerAvatar || proposal.freelancerId?.avatar || '',
+    title: proposal.freelancerTitle || 'Professional Freelancer',
   };
 
+  // Target project info
   const targetProject = project || {
-    id: proposal?.projectId || 'proj-custom',
-    title: 'Custom Contract Project',
-    budget: proposal?.bidAmount || 3000
+    id: proposal?.projectId || proposal?.projectId?._id,
+    title: proposal?.projectTitle || 'Project',
   };
 
-  const contractAmount = proposal?.bidAmount || targetProject.budget || 2500;
-  const platformFee = Math.round(contractAmount * 0.05);
+  const contractAmount = proposal?.bidAmount || targetProject.budget || 0;
+  const proposalId = proposal?.id || proposal?._id;
 
-  const handleHire = (e) => {
+  // Handle Razorpay checkout
+  const openRazorpayCheckout = (orderData, contract) => {
+    const options = {
+      key: orderData.razorpayKeyId,
+      amount: orderData.order.amount,
+      currency: orderData.order.currency,
+      name: 'SkillHire',
+      description: `Payment for: ${targetProject.title || 'Project'}`,
+      order_id: orderData.order.id,
+      handler: async (response) => {
+        try {
+          const verifyRes = await verifyPayment({
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature,
+            paymentId: orderData.payment._id,
+          });
+
+          if (verifyRes.success) {
+            try {
+              confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 }
+              });
+            } catch (e) {
+              console.log('Confetti unavailable');
+            }
+
+            toast.success('Payment Successful!', 'Contract activated.');
+            
+            if (onHireConfirmed) {
+              onHireConfirmed(proposalId);
+            }
+            
+            onClose();
+            navigate(`/dashboard/client/contracts/${contract._id}`);
+          }
+        } catch (error) {
+          console.error('Verification failed:', error);
+          toast.error('Verification Failed', 'Payment could not be verified. Contact support.');
+        }
+      },
+      prefill: {
+        name: currentUser?.name || '',
+        email: currentUser?.email || '',
+        contact: currentUser?.phone || '',
+      },
+      notes: {
+        contractId: contract._id,
+        projectId: targetProject.id,
+      },
+      theme: {
+        color: '#4F46E5',
+      },
+      modal: {
+        ondismiss: () => {
+          toast.info('Payment Cancelled', 'You can retry payment anytime.');
+        },
+      },
+    };
+
+    const rzp = new window.Razorpay(options);
+    rzp.open();
+  };
+
+  // Handle hire with payment
+  const handleHire = async (e) => {
     e.preventDefault();
+    
     if (!agreedTerms) {
       toast.warning('Agreement Required', 'Please accept the Escrow & Service Terms.');
       return;
     }
 
-    setIsProcessing(true);
-    setTimeout(() => {
-      const contract = hireFreelancerAndCreateContract({
-        project: targetProject,
-        proposal: proposal || { id: 'prop-direct-' + Date.now(), bidAmount: contractAmount },
-        freelancer: targetFreelancer,
-        client: currentUser || {
-          id: 'usr-client-1',
-          name: 'Sarah Connor',
-          company: 'Nexus Innovations',
-          avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80'
-        }
-      });
+    if (!targetProject?.id) {
+      toast.error('Error', 'Project information is missing.');
+      return;
+    }
 
-      try {
-        confetti({
-          particleCount: 100,
-          spread: 70,
-          origin: { y: 0.6 }
-        });
-      } catch (e) {
-        console.log(e);
+    if (!proposalId) {
+      toast.error('Error', 'Proposal information is missing.');
+      return;
+    }
+
+    if (!window.Razorpay) {
+      toast.error('Razorpay Not Loaded', 'Payment gateway is not available. Please refresh the page.');
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      // Step 1: Accept proposal ONLY if not already accepted
+      if (proposal?.status !== 'accepted') {
+        try {
+          const acceptResponse = await acceptProposal(proposalId);
+          if (!acceptResponse.success) {
+            throw new Error('Failed to accept proposal');
+          }
+        } catch (acceptError) {
+          // If error is "cannot be accepted" it means already accepted - continue
+          const errorMessage = acceptError.response?.data?.message || '';
+          if (!errorMessage.includes('cannot be accepted')) {
+            throw acceptError;
+          }
+        }
       }
 
+      // Step 2: Create contract (backend returns existing if already exists)
+      const contractResponse = await createContract({
+        projectId: targetProject.id,
+        proposalId: proposalId,
+      });
+
+      if (!contractResponse.success) {
+        throw new Error(contractResponse.message || 'Failed to create contract');
+      }
+
+      const contract = contractResponse.contract;
+
+      // Step 3: Check if contract needs payment
+      if (contract.status === 'active') {
+        // Already active - no payment needed
+        toast.info('Contract Active', 'This contract is already active.');
+        onClose();
+        navigate(`/dashboard/client/contracts/${contract._id}`);
+        return;
+      }
+
+      // Step 4: Create Razorpay order
+      const orderResponse = await createPaymentOrder(contract._id);
+
+      if (!orderResponse.success) {
+        throw new Error(orderResponse.message || 'Failed to create payment order');
+      }
+
+      // Step 5: Open Razorpay checkout
+      openRazorpayCheckout(orderResponse, contract);
+
+    } catch (error) {
+      console.error('Failed to hire freelancer:', error);
+      toast.error('Hire Failed', error.response?.data?.message || error.message || 'Could not create contract.');
+    } finally {
       setIsProcessing(false);
-      toast.success('Freelancer Hired! 🎉', 'Escrow funded and contract workspace activated.');
-      onClose();
-      navigate(`/dashboard/client/contracts/${contract.id}`);
-    }, 700);
+    }
   };
 
   return (
@@ -83,7 +194,7 @@ export function HireFreelancerModal({ isOpen, onClose, proposal, project, freela
       isOpen={isOpen}
       onClose={onClose}
       title="Hire Freelancer & Fund Escrow"
-      subtitle="Your payment will be safely held in SkillHire Escrow until you approve completed work."
+      subtitle="Your payment will be securely processed via Razorpay."
       maxWidth="max-w-xl"
     >
       <form onSubmit={handleHire} className="space-y-5">
@@ -95,7 +206,7 @@ export function HireFreelancerModal({ isOpen, onClose, proposal, project, freela
               {targetFreelancer.name}
             </h4>
             <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-              {targetFreelancer.title}
+              {targetFreelancer.title || 'Professional Freelancer'}
             </p>
           </div>
           <Badge variant="primary" size="sm">
@@ -103,44 +214,32 @@ export function HireFreelancerModal({ isOpen, onClose, proposal, project, freela
           </Badge>
         </div>
 
-        {/* Financial Escrow Breakdown */}
+        {/* Financial Breakdown */}
         <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2 text-xs">
           <div className="flex justify-between text-slate-600 dark:text-slate-400">
-            <span>Milestone Project Budget</span>
+            <span>Project Budget</span>
             <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(contractAmount)}</span>
           </div>
           <div className="flex justify-between text-slate-600 dark:text-slate-400">
-            <span>Escrow Protection & Processing Fee (Client)</span>
-            <span className="font-semibold text-emerald-600 dark:text-emerald-400">$0.00 (Free)</span>
+            <span>Platform Fee (5%)</span>
+            <span className="font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(Math.round(contractAmount * 0.05))}</span>
+          </div>
+          <div className="flex justify-between text-slate-600 dark:text-slate-400">
+            <span>Freelancer Receives</span>
+            <span className="font-semibold text-slate-900 dark:text-white">{formatCurrency(contractAmount - Math.round(contractAmount * 0.05))}</span>
           </div>
           <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between text-sm font-bold text-slate-900 dark:text-white">
-            <span>Total Escrow Deposit Today</span>
+            <span>Total Payment</span>
             <span className="text-primary-600 dark:text-primary-400">{formatCurrency(contractAmount)}</span>
           </div>
         </div>
 
-        {/* Payment Method Selector */}
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
-            Payment Method
-          </label>
-          <div className="space-y-2">
-            <label className="flex items-center justify-between p-3 rounded-xl border border-primary-500/40 bg-primary-50/20 dark:bg-primary-950/20 cursor-pointer">
-              <div className="flex items-center gap-3">
-                <CreditCard className="w-5 h-5 text-primary-600 dark:text-primary-400" />
-                <div>
-                  <span className="text-xs font-bold text-slate-900 dark:text-white block">Visa ending in 4242</span>
-                  <span className="text-[11px] text-slate-400">Expires 09/28 • Default</span>
-                </div>
-              </div>
-              <input
-                type="radio"
-                name="payment"
-                checked={paymentMethod === 'card_primary'}
-                onChange={() => setPaymentMethod('card_primary')}
-                className="text-primary-600 focus:ring-primary-500 h-4 w-4"
-              />
-            </label>
+        {/* Payment Method */}
+        <div className="p-3 bg-slate-50 dark:bg-slate-850/60 rounded-xl flex items-center gap-3">
+          <CreditCard className="w-5 h-5 text-primary-600" />
+          <div>
+            <span className="text-xs font-bold text-slate-900 dark:text-white block">Razorpay Secure Payment</span>
+            <span className="text-[11px] text-slate-400">UPI, Cards, NetBanking, Wallets</span>
           </div>
         </div>
 
@@ -148,7 +247,7 @@ export function HireFreelancerModal({ isOpen, onClose, proposal, project, freela
         <div className="flex items-start gap-2.5 p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-300 rounded-xl text-xs">
           <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
           <p className="leading-relaxed">
-            <strong>100% Escrow Protection:</strong> Funds remain securely locked in SkillHire Escrow. You only release payment when work is delivered and you are 100% satisfied.
+            <strong>100% Escrow Protection:</strong> Funds remain securely locked. You only release payment when work is delivered and you are satisfied.
           </p>
         </div>
 
@@ -160,19 +259,31 @@ export function HireFreelancerModal({ isOpen, onClose, proposal, project, freela
             onChange={(e) => setAgreedTerms(e.target.checked)}
             className="rounded border-slate-300 text-primary-600 focus:ring-primary-500 mt-0.5"
           />
-          <span>I agree to the SkillHire Service Contract Terms, Escrow Instructions, and Dispute Resolution Policy.</span>
+          <span>I agree to the Service Contract Terms, Escrow Instructions, and Dispute Resolution Policy.</span>
         </label>
 
         {/* Actions */}
         <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-          <Button variant="outline" onClick={onClose} disabled={isProcessing}>
+          <Button 
+            type="button" 
+            variant="outline" 
+            onClick={onClose} 
+            disabled={isProcessing}
+          >
             Cancel
           </Button>
-          <Button type="submit" variant="primary" icon={Lock} isLoading={isProcessing}>
-            Deposit Escrow & Start Contract ({formatCurrency(contractAmount)})
+          <Button 
+            type="submit" 
+            variant="primary" 
+            icon={Lock} 
+            isLoading={isProcessing}
+          >
+            Pay & Start Contract ({formatCurrency(contractAmount)})
           </Button>
         </div>
       </form>
     </Modal>
   );
 }
+
+export default HireFreelancerModal;

@@ -1,26 +1,34 @@
 // client/src/components/settings/SettingsLayout.jsx
 import React from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { 
   User, 
   Shield, 
   Phone, 
   Mail, 
-  AlertTriangle,
-  CheckCircle2
+  FolderGit2,
+  Wallet,
 } from 'lucide-react';
 
 export function SettingsLayout({ 
   activeTab, 
   onTabChange, 
   children,
-  role = 'freelancer'
 }) {
-  const tabs = [
-    { id: 'profile', label: 'Profile', icon: User, description: 'Manage your personal information' },
-    { id: 'security', label: 'Security', icon: Shield, description: 'Password and account security' },
-    { id: 'phone', label: 'Phone', icon: Phone, description: 'Verify and manage phone number' },
-    { id: 'email', label: 'Email', icon: Mail, description: 'Manage email address' },
+  const { currentUser } = useAuth();
+  const role = currentUser?.role || 'freelancer';
+
+  const allTabs = [
+    { id: 'profile', label: 'Profile', icon: User, roles: ['freelancer', 'client', 'admin'] },
+    { id: 'portfolio', label: 'Portfolio', icon: FolderGit2, roles: ['freelancer'] },
+    { id: 'payout', label: 'Payout', icon: Wallet, roles: ['freelancer'] },
+    { id: 'security', label: 'Security', icon: Shield, roles: ['freelancer', 'client', 'admin'] },
+    { id: 'phone', label: 'Phone', icon: Phone, roles: ['freelancer', 'client', 'admin'] },
+    { id: 'email', label: 'Email', icon: Mail, roles: ['freelancer', 'client', 'admin'] },
   ];
+
+  // Filter tabs based on user role
+  const tabs = allTabs.filter(tab => tab.roles.includes(role));
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12">
@@ -53,9 +61,9 @@ export function SettingsLayout({
               <Icon className="w-4 h-4" />
               <span>{tab.label}</span>
               
-              {/* Status indicators */}
-              {tab.id === 'phone' && (
-                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+              {/* Status indicator for phone */}
+              {tab.id === 'phone' && currentUser?.isPhoneVerified && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
               )}
             </button>
           );
@@ -69,3 +77,5 @@ export function SettingsLayout({
     </div>
   );
 }
+
+export default SettingsLayout;

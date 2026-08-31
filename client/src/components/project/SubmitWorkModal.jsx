@@ -1,57 +1,119 @@
+// client/src/components/project/SubmitWorkModal.jsx
 import React, { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { Input } from '../common/Input';
 import { Textarea } from '../common/Textarea';
 import { Button } from '../common/Button';
-import { useMarketplace } from '../../context/MarketplaceContext';
+import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { createDelivery, updateDelivery } from '../../services/delivery.service';
 import { Upload, Link as LinkIcon, GitBranch, Send } from 'lucide-react';
 
-export function SubmitWorkModal({ isOpen, onClose, contract, milestone }) {
-  const { submitMilestoneWork } = useMarketplace();
+export function SubmitWorkModal({ isOpen, onClose, contract, milestone, delivery, onSubmit, isRevision = false }) {
+  const { currentUser } = useAuth();
   const toast = useToast();
 
-  const [message, setMessage] = useState('');
-  const [demoLink, setDemoLink] = useState('');
-  const [githubLink, setGithubLink] = useState('');
+  const [title, setTitle] = useState(delivery?.title || milestone?.title || '');
+  const [message, setMessage] = useState(delivery?.message || '');
+  const [liveDemoUrl, setLiveDemoUrl] = useState(delivery?.liveUrl || '');
+  const [githubUrl, setGithubUrl] = useState(delivery?.githubUrl || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!contract || !milestone) return null;
+  if (!contract && !delivery) return null;
 
-  const handleSubmit = (e) => {
+  const contractId = contract?.id || contract?._id || delivery?.contractId;
+  const deliveryId = delivery?._id || null;
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validation
+    if (!title.trim()) {
+      toast.warning('Title Required', 'Please provide a title for your delivery.');
+      return;
+    }
+
     if (!message.trim()) {
-      toast.warning('Delivery Message Required', 'Please provide a message describing your completed deliverables.');
+      toast.warning('Message Required', 'Please describe your completed deliverables.');
+      return;
+    }
+
+    // If onSubmit provided, parent handles API
+    if (onSubmit) {
+      setIsSubmitting(true);
+      await onSubmit({
+        title: title.trim(),
+        description: message.trim(),
+        liveDemoUrl: liveDemoUrl.trim() || null,
+        githubUrl: githubUrl.trim() || null,
+        attachments: [],
+      });
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Otherwise call API directly
+    if (!contractId) {
+      toast.error('Error', 'Contract information is missing.');
       return;
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      submitMilestoneWork(contract.id, milestone.id, {
-        message,
-        demoLink: demoLink || 'https://demo.skillhire.io/preview',
-        githubLink: githubLink || 'https://github.com/client-org/project-repo',
-        files: ['production_build_artifacts.zip']
-      });
 
-      setIsSubmitting(false);
-      toast.success('Work Submitted!', 'Your deliverables have been sent to the client for approval.');
+    try {
+      const data = {
+        contractId,
+        title: title.trim(),
+        description: message.trim(),
+        liveDemoUrl: liveDemoUrl.trim() || null,
+        githubUrl: githubUrl.trim() || null,
+        attachments: [],
+      };
+
+      let response;
+      
+      if (isRevision && deliveryId) {
+        // Update existing delivery (resubmit after revision)
+        response = await updateDelivery(deliveryId, data);
+        if (response.success) {
+          toast.success('Work Resubmitted!', 'Your updated work has been sent to the client.');
+        }
+      } else {
+        // Create new delivery
+        response = await createDelivery(data);
+        if (response.success) {
+          toast.success('Work Submitted!', 'Your deliverables have been sent to the client for approval.');
+        }
+      }
+
+      // Reset form
+      setTitle('');
+      setMessage('');
+      setLiveDemoUrl('');
+      setGithubUrl('');
       onClose();
-    }, 600);
+    } catch (error) {
+      console.error('Failed to submit work:', error);
+      toast.error('Submit Failed', error.response?.data?.message || 'Could not submit work.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
+  // Auto-fill demo
   const handleFillDemo = () => {
-    setMessage('All milestone deliverables have been engineered, tested across mobile/desktop, and deployed to our staging preview environment. Test credentials and architecture documentation are attached.');
-    setDemoLink('https://analytics-preview.nexusinnovations.io');
-    setGithubLink('https://github.com/nexusinnovations/dashboard-engine');
+    setTitle('Completed Deliverables');
+    setMessage('All milestone deliverables have been engineered, tested across mobile/desktop, and deployed to the staging preview environment. Test credentials and architecture documentation are attached.');
+    setLiveDemoUrl('https://staging.example.com');
+    setGithubUrl('https://github.com/example/project');
   };
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Submit Milestone Work"
-      subtitle={`Milestone: ${milestone.title}`}
+      title={isRevision ? 'Resubmit Work' : 'Submit Work'}
+      subtitle={title ? `Delivery: ${title}` : contract?.projectTitle || 'Submit your completed work'}
       maxWidth="max-w-xl"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -62,15 +124,23 @@ export function SubmitWorkModal({ isOpen, onClose, contract, milestone }) {
             onClick={handleFillDemo}
             className="text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline"
           >
-            Auto-fill demo submission
+            Auto-fill demo
           </button>
         </div>
+
+        <Input
+          label="Delivery Title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="e.g. Authentication Module Complete"
+          required
+        />
 
         <Textarea
           label="Delivery Message & Notes"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          placeholder="Describe what was completed in this milestone, testing instructions, and deployment details..."
+          placeholder="Describe what was completed, testing instructions, and deployment details..."
           rows={4}
           required
         />
@@ -78,8 +148,8 @@ export function SubmitWorkModal({ isOpen, onClose, contract, milestone }) {
         <Input
           label="Live Demo / Prototype URL (Optional)"
           type="url"
-          value={demoLink}
-          onChange={(e) => setDemoLink(e.target.value)}
+          value={liveDemoUrl}
+          onChange={(e) => setLiveDemoUrl(e.target.value)}
           icon={LinkIcon}
           placeholder="https://staging.app.com"
         />
@@ -87,8 +157,8 @@ export function SubmitWorkModal({ isOpen, onClose, contract, milestone }) {
         <Input
           label="GitHub / Repository URL (Optional)"
           type="url"
-          value={githubLink}
-          onChange={(e) => setGithubLink(e.target.value)}
+          value={githubUrl}
+          onChange={(e) => setGithubUrl(e.target.value)}
           icon={GitBranch}
           placeholder="https://github.com/org/repo"
         />
@@ -96,20 +166,22 @@ export function SubmitWorkModal({ isOpen, onClose, contract, milestone }) {
         <div className="border border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-4 text-center bg-slate-50/50 dark:bg-slate-850/50">
           <Upload className="w-5 h-5 mx-auto text-slate-400 mb-1" />
           <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-            Drag & drop assets (ZIP, PDF, Figma)
+            File uploads coming soon
           </p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Max file size 100MB</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">You can add links above for now</p>
         </div>
 
         <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-          <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
+          <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
           <Button type="submit" variant="primary" icon={Send} isLoading={isSubmitting}>
-            Submit Deliverable
+            {isRevision ? 'Resubmit Work' : 'Submit Work'}
           </Button>
         </div>
       </form>
     </Modal>
   );
 }
+
+export default SubmitWorkModal;

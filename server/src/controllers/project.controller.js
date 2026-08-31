@@ -318,3 +318,46 @@ export const getSimilarProjects = asyncHandler(async (req, res, next) => {
     projects: similarProjects
   });
 });
+
+// @desc    Get all projects for admin (all statuses)
+// @route   GET /api/projects/admin/all
+// @access  Private (Admin only)
+export const getAllProjectsAdmin = asyncHandler(async (req, res, next) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+
+  let query = {};
+
+  // Search
+  if (req.query.search) {
+    query.$or = [
+      { title: { $regex: req.query.search, $options: 'i' } },
+      { description: { $regex: req.query.search, $options: 'i' } }
+    ];
+  }
+
+  // Filter by status
+  if (req.query.status && req.query.status !== 'all') {
+    query.status = req.query.status;
+  }
+
+  const projects = await Project.find(query)
+    .populate('clientId', 'name email avatar')
+    .populate('categoryId', 'name')
+    .populate('skills', 'name')
+    .skip(skip)
+    .limit(limit)
+    .sort({ createdAt: -1 });
+
+  const total = await Project.countDocuments(query);
+
+  res.status(200).json({
+    success: true,
+    count: projects.length,
+    total,
+    totalPages: Math.ceil(total / limit),
+    currentPage: page,
+    projects
+  });
+});

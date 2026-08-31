@@ -1,23 +1,27 @@
 // client/src/pages/client/ClientDashboard.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
+import { getMyProfile } from '../../services/profile.service';
+import { getMyProjects } from '../../services/project.service';
+import { getClientContracts } from '../../services/contract.service';
 import { StatCard } from '../../components/dashboard/StatCard';
 import { ChartCard } from '../../components/dashboard/ChartCard';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
-import { FreelancerCardSkeleton } from '../../components/common/SkeletonLoader';
 import { formatCurrency } from '../../utils/formatters';
 import {
   Briefcase,
   CreditCard,
-  FileText,
   CheckCircle2,
   FolderPlus,
-  ArrowRight,
-  Building,
+  Users,
   Loader2,
-  Users
+  Building,
+  TrendingUp,
+  Clock,
+  FileText,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -30,40 +34,95 @@ import {
 } from 'recharts';
 
 export function ClientDashboard() {
-  const { currentUser, profile, fetchProfile, isProfileLoading } = useAuth();
+  const { currentUser } = useAuth();
+  const toast = useToast();
+
+  const [profile, setProfile] = useState(null);
+  const [projects, setProjects] = useState([]);
+  const [contracts, setContracts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load profile on mount
-  useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
-      await fetchProfile();
+  // Fetch all dashboard data
+  const fetchDashboardData = useCallback(async () => {
+    setIsLoading(true);
+    
+    try {
+      const [profileRes, projectsRes, contractsRes] = await Promise.all([
+        getMyProfile(),
+        getMyProjects(),
+        getClientContracts(),
+      ]);
+
+      if (profileRes.success) {
+        setProfile(profileRes.profile);
+      }
+
+      if (projectsRes.success) {
+        setProjects(projectsRes.projects || []);
+      }
+
+      if (contractsRes.success) {
+        setContracts(contractsRes.contracts || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch dashboard data:', error);
+      // Silent fail - dashboard shows zeros
+    } finally {
       setIsLoading(false);
-    };
-    loadData();
+    }
   }, []);
 
-  // Mock spend data (replace with real API later)
-  const spendData = [
-    { month: 'Mar', spend: 4200 },
-    { month: 'Apr', spend: 6800 },
-    { month: 'May', spend: 5400 },
-    { month: 'Jun', spend: 8900 },
-    { month: 'Jul', spend: 11200 },
-    { month: 'Aug', spend: profile?.totalSpent || 12000 }
-  ];
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  // Calculate real stats
+  const activeProjects = projects.filter(p => p.status === 'open').length;
+  const inProgressProjects = projects.filter(p => p.status === 'in_progress').length;
+  const completedProjects = projects.filter(p => p.status === 'completed').length;
+  const activeContracts = contracts.filter(c => c.status === 'active').length;
+  const completedContracts = contracts.filter(c => c.status === 'completed').length;
+  const totalSpent = contracts.reduce((sum, c) => sum + (c.amount || 0), 0);
+  const freelancersHired = contracts.filter(c => c.freelancerId).length;
+
+  // Spend data for chart (last 6 months)
+  const spendData = generateSpendData(contracts);
+
+  function generateSpendData(contractsList) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const now = new Date();
+    const data = [];
+
+    for (let i = 5; i >= 0; i--) {
+      const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthKey = monthDate.toISOString().slice(0, 7); // YYYY-MM
+      const monthSpend = contractsList
+        .filter(c => {
+          const contractDate = c.createdAt ? new Date(c.createdAt) : null;
+          return contractDate && contractDate.toISOString().slice(0, 7) === monthKey;
+        })
+        .reduce((sum, c) => sum + (c.amount || 0), 0);
+
+      data.push({
+        month: months[monthDate.getMonth()],
+        spend: monthSpend,
+      });
+    }
+
+    return data;
+  }
 
   // Loading state
-  if (isLoading || isProfileLoading) {
+  if (isLoading) {
     return (
       <div className="space-y-8">
-        <FreelancerCardSkeleton className="h-32 rounded-3xl" />
+        <div className="h-32 rounded-3xl bg-slate-200 dark:bg-slate-800 animate-pulse" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map(i => (
-            <FreelancerCardSkeleton key={i} className="h-28 rounded-2xl" />
+            <div key={i} className="h-28 rounded-2xl bg-slate-200 dark:bg-slate-800 animate-pulse" />
           ))}
         </div>
-        <FreelancerCardSkeleton className="h-64 rounded-2xl" />
+        <div className="h-64 rounded-2xl bg-slate-200 dark:bg-slate-800 animate-pulse" />
       </div>
     );
   }
@@ -75,11 +134,10 @@ export function ClientDashboard() {
         <div className="space-y-1">
           <Badge variant="primary" size="sm">Client Operations Hub</Badge>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Welcome back, {currentUser?.name?.split(' ')[0] || 'Client'} 👋
+            Welcome back, {currentUser?.name?.split(' ')[0] || 'Client'}
           </h1>
           <p className="text-xs text-primary-200">
-            {profile?.companyName || 'Your Company'} • 
-            {' '}{profile?.industry || 'Add your industry'}
+            {profile?.companyName || 'Your Company'} • {profile?.industry || 'Add your industry'}
           </p>
         </div>
 
@@ -100,52 +158,53 @@ export function ClientDashboard() {
       {/* 4 Metric Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <StatCard
-          title="Projects Posted"
-          value={profile?.projectsPosted || 0}
-          change="Total"
-          isPositive={true}
+          title="Total Projects"
+          value={projects.length}
+          change={`${activeProjects} open`}
+          isPositive={activeProjects > 0}
           icon={Briefcase}
           color="primary"
-          subtitle="Lifetime projects"
+          subtitle="All-time projects"
+        />
+        <StatCard
+          title="Active Contracts"
+          value={activeContracts}
+          change={`${inProgressProjects} in progress`}
+          isPositive={activeContracts > 0}
+          icon={Clock}
+          color="amber"
+          subtitle="Currently active"
         />
         <StatCard
           title="Total Spent"
-          value={formatCurrency(profile?.totalSpent || 0)}
+          value={formatCurrency(totalSpent)}
           change="Lifetime"
           isPositive={true}
           icon={CreditCard}
           color="emerald"
-          subtitle="Escrow + completed"
+          subtitle="Across all contracts"
         />
         <StatCard
           title="Freelancers Hired"
-          value={profile?.totalHired || 0}
-          change="Total"
-          isPositive={true}
+          value={freelancersHired}
+          change={`${completedContracts} completed`}
+          isPositive={completedContracts > 0}
           icon={Users}
-          color="amber"
-          subtitle="Successful contracts"
-        />
-        <StatCard
-          title="Company"
-          value={profile?.companyName || 'Not Set'}
-          change={profile?.industry || 'Add industry'}
-          isPositive={true}
-          icon={Building}
           color="purple"
-          subtitle="Your organization"
+          subtitle="Unique freelancers"
         />
       </div>
 
-      {/* Spending Chart */}
+      {/* Chart + Profile Summary */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Spending Chart */}
         <div className="lg:col-span-2">
           <ChartCard
             title="Monthly Project Spend"
-            subtitle="Cumulative investment across projects"
+            subtitle="Real spending from your contracts"
             action={
               <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg">
-                ${profile?.totalSpent || 0} Total
+                {formatCurrency(totalSpent)} Total
               </span>
             }
           >
@@ -212,7 +271,13 @@ export function ClientDashboard() {
               <div className="flex justify-between">
                 <span className="text-slate-500">Location</span>
                 <span className="font-semibold text-slate-900 dark:text-white">
-                  {profile.location?.city || 'Not set'}
+                  {[profile.location?.city, profile.location?.country].filter(Boolean).join(', ') || 'Not set'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Projects Posted</span>
+                <span className="font-semibold text-slate-900 dark:text-white">
+                  {profile.projectsPosted || projects.length}
                 </span>
               </div>
 
@@ -234,6 +299,41 @@ export function ClientDashboard() {
           )}
         </div>
       </div>
+
+      {/* Recent Projects */}
+      {projects.length > 0 && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-6 shadow-soft">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">Recent Projects</h3>
+            <Link to="/dashboard/client/projects" className="text-xs font-bold text-primary-600 hover:underline">
+              View All
+            </Link>
+          </div>
+
+          <div className="space-y-3">
+            {projects.slice(0, 3).map((project) => (
+              <Link
+                key={project._id}
+                to={`/projects/${project._id}`}
+                className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-850/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <FileText className="w-4 h-4 text-primary-600 shrink-0" />
+                  <div className="min-w-0">
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate">{project.title}</h4>
+                    <p className="text-[11px] text-slate-400">
+                      {project.proposalCount || 0} proposals • {project.status}
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-slate-900 dark:text-white shrink-0 ml-2">
+                  {formatCurrency(project.budget?.min || 0)}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -258,3 +358,5 @@ export function ClientDashboard() {
     </div>
   );
 }
+
+export default ClientDashboard;

@@ -23,6 +23,8 @@
         "multer": "^2.2.0",
         "nodemailer": "^9.0.5",
         "nodemon": "^3.1.14",
+        "pdfkit": "^0.20.2",
+        "razorpay": "^2.9.8",
         "socket.io": "^4.8.3"
     }
 }

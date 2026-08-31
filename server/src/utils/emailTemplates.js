@@ -200,3 +200,123 @@ export const projectNotificationTemplate = (user, project, type) => {
     '#4f46e5'
   );
 };
+
+
+
+// ============ PAYMENT SUCCESS (CLIENT) ============
+export const paymentSuccessTemplate = (client, payment, contract) => {
+  const platformFee = Math.round(payment.amount * 0.05);
+  const gst = Math.round(platformFee * 0.18);
+
+  return createEmail(
+    `<h1 style="font-size:20px; margin:0;">Payment Successful</h1>`,
+    `
+      <h2>Hi ${client.name},</h2>
+      <p>Your payment has been processed successfully.</p>
+      <div class="info-box">
+        <p style="margin:0; color:#71717a;">Project: <strong>${contract.projectId?.title || 'Project'}</strong></p>
+        <p style="font-size:28px; font-weight:700; margin:8px 0; color:#10b981;">₹${payment.amount.toLocaleString('en-IN')}</p>
+        <p style="margin:0; color:#71717a; font-size:12px;">Order ID: ${payment.orderId}</p>
+      </div>
+      <div class="info-box" style="background:#f0fdf4;">
+        <p style="margin:0; font-size:12px;">Platform Fee (5%): ₹${platformFee.toLocaleString('en-IN')}</p>
+        <p style="margin:4px 0; font-size:12px;">GST (18%): ₹${gst.toLocaleString('en-IN')}</p>
+      </div>
+      <p class="muted">Funds are held securely in escrow until you approve the work.</p>
+      <a href="${process.env.CLIENT_URL}/dashboard/client/contracts/${contract._id}" class="btn" style="background:#10b981; color:#fff;">View Contract</a>
+    `,
+    '#10b981'
+  );
+};
+
+// ============ CONTRACT CREATED (FREELANCER) ============
+export const contractCreatedTemplate = (freelancer, contract) => {
+  return createEmail(
+    `<h1 style="font-size:20px; margin:0;">You Have Been Hired! 🎉</h1>`,
+    `
+      <h2>Hi ${freelancer.name},</h2>
+      <p>Congratulations! A client has hired you for their project.</p>
+      <div class="info-box">
+        <p style="margin:0; color:#71717a;">Project: <strong>${contract.projectId?.title || 'Project'}</strong></p>
+        <p style="font-size:28px; font-weight:700; margin:8px 0; color:#4f46e5;">₹${contract.amount.toLocaleString('en-IN')}</p>
+        <p style="margin:0; color:#71717a; font-size:12px;">Deadline: ${new Date(contract.deadline).toLocaleDateString('en-IN')}</p>
+      </div>
+      <p class="muted">Start working on the project and submit your deliverables.</p>
+      <a href="${process.env.CLIENT_URL}/dashboard/freelancer/contracts/${contract._id}" class="btn" style="background:#4f46e5; color:#fff;">View Contract</a>
+    `,
+    '#4f46e5'
+  );
+};
+
+// ============ WORK SUBMITTED (CLIENT) ============
+export const workSubmittedTemplate = (client, delivery) => {
+  return createEmail(
+    `<h1 style="font-size:20px; margin:0;">Work Submitted</h1>`,
+    `
+      <h2>Hi ${client.name},</h2>
+      <p>Your freelancer has submitted work for review.</p>
+      <div class="info-box">
+        <p style="margin:0; font-weight:600;">${delivery.title || 'Work Submission'}</p>
+        <p style="margin:8px 0; font-size:12px; color:#71717a;">${delivery.message || ''}</p>
+      </div>
+      <p class="muted">Review the work and either approve or request changes.</p>
+      <a href="${process.env.CLIENT_URL}/dashboard/client/contracts/${delivery.contractId}" class="btn" style="background:#f59e0b; color:#fff;">Review Work</a>
+    `,
+    '#f59e0b'
+  );
+};
+
+// ============ WORK ACCEPTED (FREELANCER) ============
+export const workAcceptedTemplate = (freelancer, delivery, amount) => {
+  return createEmail(
+    `<h1 style="font-size:20px; margin:0;">Work Accepted! 💰</h1>`,
+    `
+      <h2>Hi ${freelancer.name},</h2>
+      <p>Great news! Your work has been accepted by the client.</p>
+      <div class="info-box">
+        <p style="font-size:28px; font-weight:700; margin:8px 0; color:#10b981;">₹${amount.toLocaleString('en-IN')}</p>
+        <p style="margin:0; color:#71717a; font-size:12px;">Released to your available balance</p>
+      </div>
+      <a href="${process.env.CLIENT_URL}/dashboard/freelancer/earnings" class="btn" style="background:#10b981; color:#fff;">View Earnings</a>
+    `,
+    '#10b981'
+  );
+};
+
+// ============ PAYOUT SENT (FREELANCER) ============
+export const payoutSentTemplate = (freelancer, payout) => {
+  return createEmail(
+    `<h1 style="font-size:20px; margin:0;">Payout Initiated</h1>`,
+    `
+      <h2>Hi ${freelancer.name},</h2>
+      <p>Your withdrawal has been initiated.</p>
+      <div class="info-box">
+        <p style="font-size:28px; font-weight:700; margin:8px 0; color:#4f46e5;">₹${payout.amount.toLocaleString('en-IN')}</p>
+        <p style="margin:0; color:#71717a; font-size:12px;">Payout ID: ${payout.id}</p>
+        <p style="margin:4px 0; color:#71717a; font-size:12px;">Status: ${payout.status}</p>
+      </div>
+      <p class="muted">Funds will be transferred within 24-48 hours.</p>
+      <a href="${process.env.CLIENT_URL}/dashboard/freelancer/earnings" class="btn" style="background:#4f46e5; color:#fff;">View Status</a>
+    `,
+    '#4f46e5'
+  );
+};
+
+// ============ NEW REVIEW (FREELANCER) ============
+export const reviewReceivedTemplate = (freelancer, review) => {
+  const stars = '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating);
+  
+  return createEmail(
+    `<h1 style="font-size:20px; margin:0;">New Review Received ⭐</h1>`,
+    `
+      <h2>Hi ${freelancer.name},</h2>
+      <p>A client has left you a review.</p>
+      <div class="info-box">
+        <p style="font-size:24px; margin:0; color:#f59e0b;">${stars}</p>
+        <p style="margin:8px 0; font-size:12px; color:#71717a;">${review.comment || 'No comment provided'}</p>
+      </div>
+      <a href="${process.env.CLIENT_URL}/dashboard/freelancer/reviews" class="btn" style="background:#f59e0b; color:#fff;">View Reviews</a>
+    `,
+    '#f59e0b'
+  );
+};
