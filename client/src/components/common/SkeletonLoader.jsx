@@ -1,3 +1,4 @@
+// client/src/components/common/SkeletonLoader.jsx
 import React from 'react';
 
 export function ProjectCardSkeleton() {
@@ -71,6 +72,76 @@ export function TableSkeleton({ rows = 5 }) {
           <div className="h-7 w-16 bg-slate-200 dark:bg-slate-800 rounded-lg" />
         </div>
       ))}
+    </div>
+  );
+}
+
+// Category Card Skeleton
+export function CategoryCardSkeleton() {
+  return (
+    <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-4 animate-pulse">
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div className="w-14 h-14 bg-slate-200 dark:bg-slate-800 rounded-2xl" />
+        <div className="w-20 h-4 bg-slate-200 dark:bg-slate-800 rounded" />
+      </div>
+      
+      <div className="w-40 h-6 bg-slate-200 dark:bg-slate-800 rounded-lg" />
+      
+      <div className="space-y-2">
+        <div className="w-full h-4 bg-slate-200 dark:bg-slate-800 rounded" />
+        <div className="w-5/6 h-4 bg-slate-200 dark:bg-slate-800 rounded" />
+      </div>
+      
+      <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <div className="w-24 h-4 bg-slate-200 dark:bg-slate-800 rounded" />
+        <div className="w-28 h-9 bg-slate-200 dark:bg-slate-800 rounded-xl" />
+      </div>
+    </div>
+  );
+}
+
+//  Proposal Card Skeleton
+export function ProposalCardSkeleton() {
+  return (
+    <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-4 animate-pulse">
+      <div className="flex items-start gap-4">
+        <div className="w-12 h-12 rounded-full bg-slate-200 dark:bg-slate-800 shrink-0" />
+        <div className="flex-1 space-y-2">
+          <div className="w-36 h-5 bg-slate-200 dark:bg-slate-800 rounded" />
+          <div className="w-24 h-4 bg-slate-200 dark:bg-slate-800 rounded" />
+        </div>
+        <div className="w-20 h-8 bg-slate-200 dark:bg-slate-800 rounded-xl" />
+      </div>
+      
+      <div className="space-y-2">
+        <div className="w-full h-4 bg-slate-200 dark:bg-slate-800 rounded" />
+        <div className="w-full h-4 bg-slate-200 dark:bg-slate-800 rounded" />
+        <div className="w-2/3 h-4 bg-slate-200 dark:bg-slate-800 rounded" />
+      </div>
+      
+      <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
+        <div className="w-24 h-9 bg-slate-200 dark:bg-slate-800 rounded-xl" />
+        <div className="w-24 h-9 bg-slate-200 dark:bg-slate-800 rounded-xl" />
+      </div>
+    </div>
+  );
+}
+
+// Review Card Skeleton
+export function ReviewCardSkeleton() {
+  return (
+    <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-3 animate-pulse">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-800" />
+        <div className="space-y-1.5">
+          <div className="w-28 h-4 bg-slate-200 dark:bg-slate-800 rounded" />
+          <div className="w-20 h-3 bg-slate-200 dark:bg-slate-800 rounded" />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <div className="w-full h-3.5 bg-slate-200 dark:bg-slate-800 rounded" />
+        <div className="w-5/6 h-3.5 bg-slate-200 dark:bg-slate-800 rounded" />
+      </div>
     </div>
   );
 }

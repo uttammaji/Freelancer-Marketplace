@@ -35,12 +35,38 @@ export const deleteCache = async (key) => {
 };
 
 // Delete cache by pattern
+// export const deleteCacheByPattern = async (pattern) => {
+//   try {
+//     const keys = await redis.keys(pattern);
+//     if (keys.length > 0) {
+//       await redis.del(...keys);
+//     }
+//     return true;
+//   } catch (error) {
+//     console.error('Cache pattern delete error:', error.message);
+//     return false;
+//   }
+// };
+
+
+// Delete cache by pattern 
 export const deleteCacheByPattern = async (pattern) => {
   try {
-    const keys = await redis.keys(pattern);
-    if (keys.length > 0) {
-      await redis.del(...keys);
-    }
+    let cursor = '0';
+    
+    do {
+      // SCAN searches in small batches without blocking Redis
+      const reply = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+      
+      cursor = reply[0];  
+      const keys = reply[1]; 
+
+      if (keys.length > 0) {
+        await redis.del(...keys);
+      }
+      
+    } while (cursor !== '0'); 
+
     return true;
   } catch (error) {
     console.error('Cache pattern delete error:', error.message);

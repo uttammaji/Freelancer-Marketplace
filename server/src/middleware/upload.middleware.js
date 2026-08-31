@@ -16,6 +16,7 @@ const storage = multer.diskStorage({
     cb(null, 'uploads/');
   },
   filename: (req, file, cb) => {
+
     // Sanitize original filename
     const sanitizedBase = file.originalname
       .replace(/[^a-zA-Z0-9.]/g, '-')
@@ -35,7 +36,7 @@ const storage = multer.diskStorage({
   }
 });
 
-// File filter for images (MORE LENIENT - accepts MIME OR extension)
+// File filter for images 
 const imageFilter = (req, file, cb) => {
   const allowedMimeTypes = [
     'image/jpeg',
@@ -60,7 +61,7 @@ const imageFilter = (req, file, cb) => {
   }
 };
 
-// File filter for documents (MORE LENIENT)
+// File filter for documents
 const documentFilter = (req, file, cb) => {
   const allowedMimeTypes = [
     'application/pdf',

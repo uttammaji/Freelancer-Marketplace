@@ -1,11 +1,13 @@
-import React, { useState, useMemo } from 'react';
+// client/src/pages/public/ProjectsPage.jsx
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { useMarketplace } from '../../context/MarketplaceContext';
-import { mockCategories } from '../../data/mockCategories';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
+import { getAllProjects, getSimilarProjects } from '../../services/project.service';
+import { getAllCategories } from '../../services/category.service';
 import { ProjectCard } from '../../components/cards/ProjectCard';
 import { ProposalModal } from '../../components/project/ProposalModal';
 import { SearchBar } from '../../components/common/SearchBar';
-import { Select } from '../../components/common/Select';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { Pagination } from '../../components/common/Pagination';
@@ -15,114 +17,125 @@ import {
   SlidersHorizontal,
   X,
   RotateCcw,
-  Briefcase,
-  CheckCircle2,
-  DollarSign,
-  Award,
-  Sparkles
+  Loader2,
 } from 'lucide-react';
 
 export function ProjectsPage() {
-  const { projects } = useMarketplace();
+  const { currentUser } = useAuth();
+  const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // URL search query
+  // URL params
   const querySearch = searchParams.get('search') || '';
-  const queryCategory = searchParams.get('category') || 'All';
+  const queryCategory = searchParams.get('category') || '';
 
+  // State
+  const [projects, setProjects] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isCategoriesLoading, setIsCategoriesLoading] = useState(true);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+
+  // Filter state
   const [search, setSearch] = useState(querySearch);
   const [selectedCategory, setSelectedCategory] = useState(queryCategory);
-  const [selectedBudgetType, setSelectedBudgetType] = useState('all'); // 'all', 'fixed', 'hourly'
-  const [selectedExperience, setSelectedExperience] = useState('all'); // 'all', 'Entry', 'Intermediate', 'Expert'
-  const [onlyVerified, setOnlyVerified] = useState(false);
+  const [selectedBudgetType, setSelectedBudgetType] = useState('');
+  const [selectedExperience, setSelectedExperience] = useState('');
+  const [selectedSkills, setSelectedSkills] = useState([]);
   const [minBudget, setMinBudget] = useState(0);
   const [maxBudget, setMaxBudget] = useState(10000);
-  const [selectedSkills, setSelectedSkills] = useState([]);
-  const [sortBy, setSortBy] = useState('newest'); // 'newest', 'budget_high', 'budget_low', 'proposals'
+  const [sortBy, setSortBy] = useState('newest');
   const [currentPage, setCurrentPage] = useState(1);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
-
-  // Proposal modal state
   const [activeProjectForProposal, setActiveProjectForProposal] = useState(null);
 
-  const allAvailableSkills = ['React', 'TypeScript', 'Node.js', 'Figma', 'Python', 'Flutter', 'Tailwind CSS', 'AWS', 'OpenAI API', 'GraphQL', 'Docker'];
+  const itemsPerPage = 6;
 
-  const toggleSkill = (skill) => {
-    setSelectedSkills(prev =>
-      prev.includes(skill) ? prev.filter(s => s !== skill) : [...prev, skill]
-    );
-    setCurrentPage(1);
-  };
+  // Fetch categories
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await getAllCategories();
+        if (response.success) {
+          setCategories(response.categories);
+        }
+      } catch (error) {
+        console.error('Failed to fetch categories:', error);
+      } finally {
+        setIsCategoriesLoading(false);
+      }
+    };
 
+    fetchCategories();
+  }, []);
+
+  // Fetch projects
+  const fetchProjects = useCallback(async () => {
+    setIsLoading(true);
+    
+    try {
+      const params = {
+        page: currentPage,
+        limit: itemsPerPage,
+        search: search || undefined,
+        categoryId: selectedCategory || undefined,
+        budgetType: selectedBudgetType || undefined,
+        experienceLevel: selectedExperience || undefined,
+        minBudget: minBudget > 0 ? minBudget : undefined,
+        maxBudget: maxBudget < 10000 ? maxBudget : undefined,
+        sort: sortBy === 'newest' ? undefined : sortBy === 'budget_high' ? 'budget' : sortBy === 'budget_low' ? 'oldest' : 'proposals'
+      };
+
+      // Remove undefined params
+      Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
+
+      const response = await getAllProjects(params);
+      
+      if (response.success) {
+        setProjects(response.projects);
+        setTotalPages(response.totalPages || 1);
+        setTotalCount(response.total || 0);
+      }
+    } catch (error) {
+      console.error('Failed to fetch projects:', error);
+      toast.error('Load Failed', 'Could not load projects.');
+      setProjects([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentPage, search, selectedCategory, selectedBudgetType, selectedExperience, minBudget, maxBudget, sortBy, toast]);
+
+  // Debounce search
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      fetchProjects();
+    }, search ? 500 : 0);
+
+    return () => clearTimeout(debounceTimer);
+  }, [fetchProjects]);
+
+  // Update URL when filters change
+  useEffect(() => {
+    const params = {};
+    if (search) params.search = search;
+    if (selectedCategory) params.category = selectedCategory;
+    setSearchParams(params, { replace: true });
+  }, [search, selectedCategory, setSearchParams]);
+
+  // Reset filters
   const handleResetFilters = () => {
     setSearch('');
-    setSelectedCategory('All');
-    setSelectedBudgetType('all');
-    setSelectedExperience('all');
-    setOnlyVerified(false);
+    setSelectedCategory('');
+    setSelectedBudgetType('');
+    setSelectedExperience('');
+    setSelectedSkills([]);
     setMinBudget(0);
     setMaxBudget(10000);
-    setSelectedSkills([]);
     setSortBy('newest');
     setCurrentPage(1);
     setSearchParams({});
   };
-
-  // Filter and sort logic
-  const filteredProjects = useMemo(() => {
-    return projects.filter(p => {
-      // Search
-      if (search.trim()) {
-        const q = search.toLowerCase();
-        const matchTitle = p.title?.toLowerCase().includes(q);
-        const matchDesc = p.description?.toLowerCase().includes(q);
-        const matchSkill = p.skills?.some(s => s.toLowerCase().includes(q));
-        if (!matchTitle && !matchDesc && !matchSkill) return false;
-      }
-
-      // Category
-      if (selectedCategory !== 'All' && p.category !== selectedCategory) {
-        return false;
-      }
-
-      // Budget Type
-      if (selectedBudgetType !== 'all' && p.budgetType !== selectedBudgetType) {
-        return false;
-      }
-
-      // Experience Level
-      if (selectedExperience !== 'all' && p.experienceLevel !== selectedExperience) {
-        return false;
-      }
-
-      // Verified Payment only
-      if (onlyVerified && !p.clientPaymentVerified) {
-        return false;
-      }
-
-      // Budget range
-      if (p.budgetType === 'fixed') {
-        if (p.budget < minBudget || p.budget > maxBudget) return false;
-      }
-
-      // Skills multi-filter
-      if (selectedSkills.length > 0) {
-        const hasAllSkills = selectedSkills.every(s => p.skills?.includes(s));
-        if (!hasAllSkills) return false;
-      }
-
-      return true;
-    }).sort((a, b) => {
-      if (sortBy === 'budget_high') return (b.budget || 0) - (a.budget || 0);
-      if (sortBy === 'budget_low') return (a.budget || 0) - (b.budget || 0);
-      if (sortBy === 'proposals') return (b.proposalsCount || 0) - (a.proposalsCount || 0);
-      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-    });
-  }, [projects, search, selectedCategory, selectedBudgetType, selectedExperience, onlyVerified, minBudget, maxBudget, selectedSkills, sortBy]);
-
-  const itemsPerPage = 6;
-  const totalPages = Math.ceil(filteredProjects.length / itemsPerPage) || 1;
-  const paginatedProjects = filteredProjects.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const FilterSidebarContent = (
     <div className="space-y-6 text-xs">
@@ -151,9 +164,9 @@ export function ProjectsPage() {
           }}
           className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
         >
-          <option value="All">All Categories</option>
-          {mockCategories.map(c => (
-            <option key={c.id} value={c.name}>{c.name}</option>
+          <option value="">All Categories</option>
+          {categories.map(c => (
+            <option key={c._id} value={c._id}>{c.name}</option>
           ))}
         </select>
       </div>
@@ -163,7 +176,7 @@ export function ProjectsPage() {
         <label className="block font-bold uppercase tracking-wider text-slate-400 mb-2">Job Type</label>
         <div className="grid grid-cols-3 gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
           {[
-            { id: 'all', label: 'All' },
+            { id: '', label: 'All' },
             { id: 'fixed', label: 'Fixed' },
             { id: 'hourly', label: 'Hourly' }
           ].map(t => (
@@ -189,62 +202,46 @@ export function ProjectsPage() {
       <div>
         <label className="block font-bold uppercase tracking-wider text-slate-400 mb-2">Experience Level</label>
         <div className="space-y-1.5">
-          {['all', 'Entry', 'Intermediate', 'Expert'].map(exp => (
-            <label key={exp} className="flex items-center gap-2.5 cursor-pointer text-slate-700 dark:text-slate-300">
+          {[
+            { id: '', label: 'Any Experience Level' },
+            { id: 'beginner', label: 'Beginner' },
+            { id: 'intermediate', label: 'Intermediate' },
+            { id: 'expert', label: 'Expert' }
+          ].map(exp => (
+            <label key={exp.id} className="flex items-center gap-2.5 cursor-pointer text-slate-700 dark:text-slate-300">
               <input
                 type="radio"
                 name="exp"
-                checked={selectedExperience === exp}
+                checked={selectedExperience === exp.id}
                 onChange={() => {
-                  setSelectedExperience(exp);
+                  setSelectedExperience(exp.id);
                   setCurrentPage(1);
                 }}
                 className="text-primary-600 focus:ring-primary-500 h-3.5 w-3.5"
               />
-              <span className="capitalize">{exp === 'all' ? 'Any Experience Level' : exp}</span>
+              <span>{exp.label}</span>
             </label>
           ))}
         </div>
       </div>
 
-      {/* Skills Checklist */}
+      {/* Budget Range */}
       <div>
-        <label className="block font-bold uppercase tracking-wider text-slate-400 mb-2">Required Skills</label>
-        <div className="flex flex-wrap gap-1.5">
-          {allAvailableSkills.map(skill => {
-            const isSelected = selectedSkills.includes(skill);
-            return (
-              <button
-                key={skill}
-                type="button"
-                onClick={() => toggleSkill(skill)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
-                  isSelected
-                    ? 'bg-primary-600 text-white border-primary-600 shadow-xs'
-                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-slate-400'
-                }`}
-              >
-                {skill}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Verified Client Toggle */}
-      <div className="pt-3 border-t border-slate-200 dark:border-slate-800">
-        <label className="flex items-center gap-2.5 cursor-pointer text-slate-700 dark:text-slate-300">
-          <input
-            type="checkbox"
-            checked={onlyVerified}
-            onChange={(e) => {
-              setOnlyVerified(e.target.checked);
-              setCurrentPage(1);
-            }}
-            className="rounded border-slate-300 text-primary-600 focus:ring-primary-500 h-4 w-4"
-          />
-          <span className="font-semibold">Payment Verified Only</span>
+        <label className="block font-bold uppercase tracking-wider text-slate-400 mb-2">
+          Budget Range: ${minBudget} - ${maxBudget}
         </label>
+        <input
+          type="range"
+          min="0"
+          max="10000"
+          step="100"
+          value={maxBudget}
+          onChange={(e) => {
+            setMaxBudget(Number(e.target.value));
+            setCurrentPage(1);
+          }}
+          className="w-full accent-primary-600 cursor-pointer"
+        />
       </div>
     </div>
   );
@@ -259,15 +256,15 @@ export function ProjectsPage() {
             Find Your Next Project
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Showing <span className="font-bold text-slate-900 dark:text-white">{filteredProjects.length}</span> active opportunities matching your search
+            Showing <span className="font-bold text-slate-900 dark:text-white">{totalCount}</span> active opportunities
           </p>
         </div>
 
-        <Link to="/dashboard/client/projects/new">
-          <Button variant="primary" size="md">
-            Post a Project
-          </Button>
-        </Link>
+        {currentUser?.role === 'client' && (
+          <Link to="/dashboard/client/projects/new">
+            <Button variant="primary" size="md">Post a Project</Button>
+          </Link>
+        )}
       </div>
 
       {/* Search & Sort Toolbar */}
@@ -285,7 +282,6 @@ export function ProjectsPage() {
         </div>
 
         <div className="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end">
-          {/* Mobile Filter Button */}
           <button
             onClick={() => setIsMobileFilterOpen(true)}
             className="lg:hidden flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900"
@@ -294,9 +290,8 @@ export function ProjectsPage() {
             <span>Filters</span>
           </button>
 
-          {/* Sort Dropdown */}
           <div className="flex items-center gap-2">
-            <span className="hidden sm:inline text-xs font-semibold text-slate-400 whitespace-nowrap">Sort by:</span>
+            <span className="hidden sm:inline text-xs font-semibold text-slate-400">Sort by:</span>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
@@ -311,28 +306,45 @@ export function ProjectsPage() {
         </div>
       </div>
 
-      {/* Main Content: Sidebar + Cards Grid */}
+      {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
-        {/* Desktop Left Filter Sidebar */}
+        {/* Desktop Sidebar */}
         <div className="hidden lg:block lg:col-span-1 p-6 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-2xl shadow-soft sticky top-24">
           {FilterSidebarContent}
         </div>
 
-        {/* Project Cards Results */}
+        {/* Results */}
         <div className="lg:col-span-3 space-y-4">
-          {paginatedProjects.length > 0 ? (
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+              {[1, 2, 3, 4].map(i => <ProjectCardSkeleton key={i} />)}
+            </div>
+          ) : projects.length > 0 ? (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                {paginatedProjects.map((proj) => (
+                {projects.map((project) => (
                   <ProjectCard
-                    key={proj.id}
-                    project={proj}
+                    key={project._id}
+                    project={{
+                      id: project._id,
+                      title: project.title,
+                      description: project.description,
+                      category: project.categoryId?.name || 'General',
+                      budget: project.budget?.min || 0,
+                      budgetType: project.budget?.type || 'fixed',
+                      skills: project.skills?.map(s => s.name || s) || [],
+                      experienceLevel: project.experienceLevel || 'intermediate',
+                      proposalsCount: project.proposalCount || 0,
+                      createdAt: project.createdAt,
+                      clientName: project.clientId?.name || 'Client',
+                      clientAvatar: project.clientId?.avatar || '',
+                      status: project.status
+                    }}
                     onQuickApply={(p) => setActiveProjectForProposal(p)}
                   />
                 ))}
               </div>
 
-              {/* Pagination */}
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
@@ -400,3 +412,5 @@ export function ProjectsPage() {
     </div>
   );
 }
+
+export default ProjectsPage;

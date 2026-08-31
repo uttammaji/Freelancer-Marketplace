@@ -1,52 +1,115 @@
-import React, { useState } from 'react';
+// client/src/pages/freelancer/MyProposalsPage.jsx
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { useMarketplace } from '../../context/MarketplaceContext';
 import { useToast } from '../../context/ToastContext';
+import { getMyProposals, withdrawProposal } from '../../services/proposal.service';
 import { Tabs } from '../../components/common/Tabs';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { EmptyState } from '../../components/common/EmptyState';
 import { formatCurrency, formatDate } from '../../utils/formatters';
-import { FileText, Clock, ArrowUpRight, Search, CheckCircle2, X } from 'lucide-react';
+import { 
+  FileText, 
+  Search, 
+  ArrowUpRight, 
+  Loader2,
+  Clock,
+} from 'lucide-react';
 
 export function MyProposalsPage() {
   const { currentUser } = useAuth();
-  const { proposals, projects } = useMarketplace();
   const toast = useToast();
 
+  const [proposals, setProposals] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
 
-  const myProposals = proposals.filter(p => p.freelancerId === 'fl-1' || p.freelancerUserId === currentUser?.id);
+  // Fetch freelancer's proposals
+  const fetchProposals = useCallback(async () => {
+    setIsLoading(true);
+    
+    try {
+      const response = await getMyProposals();
+      
+      if (response.success) {
+        setProposals(response.proposals || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch proposals:', error);
+      toast.error('Load Failed', 'Could not load your proposals.');
+      setProposals([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
 
-  const filtered = myProposals.filter(p => {
+  useEffect(() => {
+    fetchProposals();
+  }, [fetchProposals]);
+
+  // Filter by tab
+  const filtered = proposals.filter(p => {
     if (activeTab === 'all') return true;
     return p.status === activeTab;
   });
 
   const tabs = [
-    { id: 'all', label: 'All Bids', badge: myProposals.length },
-    { id: 'pending', label: 'Pending Review', badge: myProposals.filter(p => p.status === 'pending').length },
-    { id: 'shortlisted', label: 'Shortlisted', badge: myProposals.filter(p => p.status === 'shortlisted').length },
-    { id: 'accepted', label: 'Hired & Active', badge: myProposals.filter(p => p.status === 'accepted').length },
+    { id: 'all', label: 'All Bids', badge: proposals.length },
+    { id: 'pending', label: 'Pending Review', badge: proposals.filter(p => p.status === 'pending').length },
+    { id: 'shortlisted', label: 'Shortlisted', badge: proposals.filter(p => p.status === 'shortlisted').length },
+    { id: 'accepted', label: 'Hired & Active', badge: proposals.filter(p => p.status === 'accepted').length },
+    { id: 'rejected', label: 'Rejected', badge: proposals.filter(p => p.status === 'rejected').length },
   ];
 
+  // Get status badge
   const getStatusBadge = (status) => {
     switch (status) {
       case 'accepted':
-        return <Badge variant="success" size="sm" dot>Hired (Contract Started)</Badge>;
+        return <Badge variant="success" size="sm" dot>Hired</Badge>;
       case 'shortlisted':
         return <Badge variant="primary" size="sm" dot>Shortlisted</Badge>;
       case 'rejected':
         return <Badge variant="danger" size="sm" dot>Declined</Badge>;
+      case 'withdrawn':
+        return <Badge variant="default" size="sm">Withdrawn</Badge>;
       default:
         return <Badge variant="warning" size="sm" dot>Under Review</Badge>;
     }
   };
 
-  const handleWithdraw = (id) => {
-    toast.info('Proposal Withdrawn', 'Your bid has been withdrawn from this project.');
+  // Handle withdraw
+  const handleWithdraw = async (proposalId) => {
+    try {
+      const response = await withdrawProposal(proposalId);
+      
+      if (response.success) {
+        setProposals(prev => 
+          prev.map(p => 
+            p._id === proposalId 
+              ? { ...p, status: 'withdrawn' } 
+              : p
+          )
+        );
+        toast.success('Withdrawn', 'Your bid has been withdrawn.');
+      }
+    } catch (error) {
+      console.error('Failed to withdraw:', error);
+      toast.error('Action Failed', error.response?.data?.message || 'Could not withdraw proposal.');
+    }
   };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 text-primary-600 animate-spin mx-auto mb-4" />
+          <p className="text-sm text-slate-500">Loading your proposals...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 pb-12">
@@ -73,22 +136,24 @@ export function MyProposalsPage() {
 
       {filtered.length > 0 ? (
         <div className="space-y-4">
-          {filtered.map((prop) => {
-            const project = projects.find(p => p.id === prop.projectId);
+          {filtered.map((proposal) => {
+            const project = proposal.projectId;
+            
             return (
               <div
-                key={prop.id}
+                key={proposal._id}
                 className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm hover:shadow-soft transition-all space-y-4"
               >
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                   <div>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      {getStatusBadge(prop.status)}
-                      <span className="text-xs text-slate-400">Submitted {formatDate(prop.createdAt)}</span>
+                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                      {getStatusBadge(proposal.status)}
+                      <span className="text-xs text-slate-400">Submitted {formatDate(proposal.createdAt)}</span>
                     </div>
-                    <Link to={`/projects/${prop.projectId}`} className="block group">
+                    
+                    <Link to={`/projects/${project?._id}`} className="block group">
                       <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
-                        {project?.title || 'High-Impact Web Application'}
+                        {project?.title || 'Project Title'}
                       </h3>
                     </Link>
                   </div>
@@ -96,31 +161,34 @@ export function MyProposalsPage() {
                   <div className="text-right p-3 bg-slate-50 dark:bg-slate-850/50 rounded-xl sm:min-w-[120px]">
                     <span className="text-xs text-slate-400 block">Your Bid</span>
                     <span className="text-base font-extrabold text-slate-900 dark:text-white">
-                      {formatCurrency(prop.bidAmount)}
+                      {formatCurrency(proposal.bidAmount)}
                     </span>
-                    <span className="text-[11px] text-slate-400 block mt-0.5">{prop.deliveryTime}</span>
+                    <span className="text-[11px] text-slate-400 block mt-0.5">
+                      {proposal.deliveryDays} days delivery
+                    </span>
                   </div>
                 </div>
 
                 <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 italic bg-slate-50/50 dark:bg-slate-850/30 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
-                  "{prop.coverLetter}"
+                  "{proposal.coverLetter}"
                 </p>
 
                 <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 text-xs">
                   <span className="text-slate-400">
-                    Category: {project?.category || 'Engineering'}
+                    Category: {project?.categoryId?.name || 'General'}
                   </span>
 
                   <div className="flex items-center gap-2">
-                    {prop.status !== 'accepted' && (
+                    {(proposal.status === 'pending' || proposal.status === 'shortlisted') && (
                       <button
-                        onClick={() => handleWithdraw(prop.id)}
+                        onClick={() => handleWithdraw(proposal._id)}
                         className="text-xs font-semibold text-rose-600 dark:text-rose-400 hover:underline px-2 py-1"
                       >
                         Withdraw Bid
                       </button>
                     )}
-                    <Link to={`/projects/${prop.projectId}`}>
+                    
+                    <Link to={`/projects/${project?._id}`}>
                       <Button variant="outline" size="sm" iconRight={ArrowUpRight}>
                         View Project
                       </Button>
@@ -134,7 +202,7 @@ export function MyProposalsPage() {
       ) : (
         <EmptyState
           icon={FileText}
-          title="No proposals found"
+          title={activeTab === 'all' ? 'No proposals yet' : `No ${activeTab} proposals`}
           description="Browse the marketplace to find exciting projects and submit your first proposal."
           actionLabel="Find Projects"
           onAction={() => window.location.href = '/projects'}
@@ -143,3 +211,5 @@ export function MyProposalsPage() {
     </div>
   );
 }
+
+export default MyProposalsPage;

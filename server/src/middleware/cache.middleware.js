@@ -11,14 +11,14 @@ export const cacheMiddleware = (keyPrefix, expiry = 300) => {
 
     // Build cache key
     const key = `${keyPrefix}:${req.originalUrl}`;
-    // console.log('Cache key:', key); 
+   
 
     try {
       // Check cache
       const cachedData = await getCache(key);
       
       if (cachedData) {
-        // console.log('Cache HIT:', key); 
+       
         return res.status(200).json({
           success: true,
           fromCache: true,
@@ -26,13 +26,13 @@ export const cacheMiddleware = (keyPrefix, expiry = 300) => {
         });
       }
 
-      // console.log('Cache MISS:', key); 
+     
 
       // Store response in cache
       const originalJson = res.json;
       res.json = function(data) {
         if (data.success) {
-          // console.log('Storing in cache:', key);
+         
           
           setCache(key, data, expiry);
         }
