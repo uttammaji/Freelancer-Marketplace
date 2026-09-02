@@ -13,10 +13,9 @@ import { isAdmin } from '../middleware/role.middleware.js';
 
 const router = express.Router();
 
-// All routes require authentication
 router.use(protect);
 
-// ============ USER ROUTES ============
+// ============ USER ROUTES (BEFORE /:id) ============
 
 // Get my transactions
 router.get('/', getMyTransactions);
@@ -24,18 +23,20 @@ router.get('/', getMyTransactions);
 // Get my transaction stats
 router.get('/stats', getTransactionStats);
 
-// Get single transaction
-router.get('/:id', getTransactionById);
-
-// ============ ADMIN ROUTES ============
+// ============ ADMIN ROUTES (BEFORE /:id) ============
 
 // Get all transactions
 router.get('/all', isAdmin, getAllTransactions);
 
-// Create transaction
-router.post('/', isAdmin, createTransaction);
-
 // Get platform stats
 router.get('/platform-stats', isAdmin, getPlatformStats);
+
+// ============ DYNAMIC ROUTES (LAST) ============
+
+// Get single transaction
+router.get('/:id', getTransactionById);
+
+// Create transaction
+router.post('/', isAdmin, createTransaction);
 
 export default router;

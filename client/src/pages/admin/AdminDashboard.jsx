@@ -7,6 +7,7 @@ import { getAllProjectsAdmin } from '../../services/project.service';
 import { getAllDisputes, getDisputeStats } from '../../services/dispute.service';
 import { getAllFreelancers, getAllClients } from '../../services/profile.service';
 import { getContractStats } from '../../services/contract.service';
+import { getPlatformStats } from '../../services/transaction.service';
 import { StatCard } from '../../components/dashboard/StatCard';
 import { ChartCard } from '../../components/dashboard/ChartCard';
 import { DisputeCard } from '../../components/cards/DisputeCard';
@@ -15,11 +16,13 @@ import { Button } from '../../components/common/Button';
 import { formatCurrency } from '../../utils/formatters';
 import {
   Users,
-  Briefcase,
-  DollarSign,
+  IndianRupee,
   Scale,
   TrendingUp,
   Loader2,
+  Briefcase,
+  CheckCircle2,
+  Clock,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -47,11 +50,12 @@ export function AdminDashboard() {
     activeContracts: 0,
     completedContracts: 0,
     totalVolume: 0,
+    totalTransactions: 0,
   });
   const [recentDisputes, setRecentDisputes] = useState([]);
+  const [chartData, setChartData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch all admin stats
   const fetchStats = useCallback(async () => {
     setIsLoading(true);
     
@@ -63,19 +67,24 @@ export function AdminDashboard() {
         disputeStatsRes,
         disputesRes,
         contractStatsRes,
+        platformStatsRes,
       ] = await Promise.all([
         getAllFreelancers({ limit: 1 }),
         getAllClients({ limit: 1 }),
-        getAllProjectsAdmin({ limit: 1 }),
+        getAllProjectsAdmin({ limit: 100 }),
         getDisputeStats(),
         getAllDisputes({ limit: 5 }),
         getContractStats(),
+        getPlatformStats(),
       ]);
 
-      const totalFreelancers = freelancersRes.total || freelancersRes.profiles?.length || 0;
-      const totalClients = clientsRes.total || clientsRes.profiles?.length || 0;
-      const totalProjects = projectsRes.total || projectsRes.projects?.length || 0;
+      const totalFreelancers = freelancersRes.total || 0;
+      const totalClients = clientsRes.total || 0;
+      const totalProjects = projectsRes.total || 0;
       const totalUsers = totalFreelancers + totalClients;
+
+      const totalVolume = platformStatsRes.stats?.totalVolume || contractStatsRes.stats?.totalEarnings || 0;
+      const totalTransactions = platformStatsRes.stats?.totalTransactions || 0;
 
       setStats({
         totalUsers,
@@ -86,12 +95,18 @@ export function AdminDashboard() {
         totalDisputes: disputeStatsRes.stats?.total || 0,
         activeContracts: contractStatsRes.stats?.active || 0,
         completedContracts: contractStatsRes.stats?.completed || 0,
-        totalVolume: contractStatsRes.stats?.totalEarnings || 0,
+        totalVolume,
+        totalTransactions,
       });
 
       if (disputesRes.success) {
         setRecentDisputes(disputesRes.disputes || []);
       }
+
+      // Generate REAL chart data from projects
+      const realChartData = generateChartData(projectsRes.projects || [], totalVolume);
+      setChartData(realChartData);
+
     } catch (error) {
       console.error('Failed to fetch admin stats:', error);
       toast.error('Load Failed', 'Could not load dashboard stats.');
@@ -104,20 +119,39 @@ export function AdminDashboard() {
     fetchStats();
   }, [fetchStats]);
 
-  // Calculate platform revenue (5%)
-  const platformRevenue = stats.totalVolume * 0.05;
+  /**
+   * Generate real chart data from actual projects
+   */
+  const generateChartData = (projects, totalVolume) => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const now = new Date();
+    const data = [];
 
-  // Chart data (static for now - can be dynamic later)
-  const revenueGrowthData = [
-    { month: 'Mar', gmv: 42000, revenue: 2100 },
-    { month: 'Apr', gmv: 68000, revenue: 3400 },
-    { month: 'May', gmv: 85000, revenue: 4250 },
-    { month: 'Jun', gmv: 110000, revenue: 5500 },
-    { month: 'Jul', gmv: 145000, revenue: 7250 },
-    { month: 'Aug', gmv: stats.totalVolume || 184500, revenue: (stats.totalVolume * 0.05) || 9225 },
-  ];
+    for (let i = 5; i >= 0; i--) {
+      const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthKey = monthDate.toISOString().slice(0, 7);
+      
+      // Calculate real GMV for this month from projects
+      const monthProjects = projects.filter(p => {
+        const projectDate = new Date(p.createdAt);
+        return projectDate.toISOString().slice(0, 7) === monthKey;
+      });
 
-  // Loading state
+      const monthGMV = monthProjects.reduce((sum, p) => sum + (p.budget?.max || p.budget?.min || 0), 0);
+      const monthRevenue = Math.round(monthGMV * 0.05);
+
+      data.push({
+        month: months[monthDate.getMonth()],
+        gmv: monthGMV,
+        revenue: monthRevenue,
+      });
+    }
+
+    return data;
+  };
+
+  const platformRevenue = Math.round(stats.totalVolume * 0.05);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -152,28 +186,28 @@ export function AdminDashboard() {
         </div>
       </div>
 
-      {/* 4 Metric Stats */}
+      {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <StatCard
-          title="Platform GMV (Volume)"
+          title="Platform GMV"
           value={formatCurrency(stats.totalVolume)}
-          change="Total transacted"
+          change={`${stats.totalTransactions} transactions`}
           isPositive={true}
-          icon={TrendingUp}
+          icon={IndianRupee}
           color="emerald"
-          subtitle="Across all contracts"
+          subtitle="Real transaction volume"
         />
         <StatCard
           title="Platform Revenue (5%)"
           value={formatCurrency(platformRevenue)}
           change="Net platform fees"
           isPositive={true}
-          icon={DollarSign}
+          icon={TrendingUp}
           color="purple"
           subtitle="Automated take rate"
         />
         <StatCard
-          title="Total Registered Users"
+          title="Total Users"
           value={stats.totalUsers}
           change={`${stats.totalFreelancers} freelancers • ${stats.totalClients} clients`}
           isPositive={true}
@@ -182,7 +216,7 @@ export function AdminDashboard() {
           subtitle="All platform accounts"
         />
         <StatCard
-          title="Open Dispute Cases"
+          title="Open Disputes"
           value={stats.openDisputes}
           change={stats.openDisputes > 0 ? 'Requires arbitration' : 'Zero disputes'}
           isPositive={stats.openDisputes === 0}
@@ -192,35 +226,39 @@ export function AdminDashboard() {
         />
       </div>
 
-      {/* Additional Stats Row */}
+      {/* Additional Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-center">
-          <span className="text-xs text-slate-400 block mb-1">Total Projects</span>
+          <Briefcase className="w-4 h-4 text-primary-600 mx-auto mb-1" />
+          <span className="text-xs text-slate-400 block">Total Projects</span>
           <span className="text-xl font-extrabold text-slate-900 dark:text-white">{stats.totalProjects}</span>
         </div>
         <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-center">
-          <span className="text-xs text-slate-400 block mb-1">Active Contracts</span>
+          <Clock className="w-4 h-4 text-amber-600 mx-auto mb-1" />
+          <span className="text-xs text-slate-400 block">Active Contracts</span>
           <span className="text-xl font-extrabold text-slate-900 dark:text-white">{stats.activeContracts}</span>
         </div>
         <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-center">
-          <span className="text-xs text-slate-400 block mb-1">Completed Contracts</span>
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 mx-auto mb-1" />
+          <span className="text-xs text-slate-400 block">Completed</span>
           <span className="text-xl font-extrabold text-slate-900 dark:text-white">{stats.completedContracts}</span>
         </div>
         <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-center">
-          <span className="text-xs text-slate-400 block mb-1">Total Disputes</span>
+          <Scale className="w-4 h-4 text-rose-600 mx-auto mb-1" />
+          <span className="text-xs text-slate-400 block">Total Disputes</span>
           <span className="text-xl font-extrabold text-slate-900 dark:text-white">{stats.totalDisputes}</span>
         </div>
       </div>
 
-      {/* Analytics Charts */}
+      {/* Charts — REAL DATA */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ChartCard
-          title="Monthly Platform GMV & Volume"
-          subtitle="Gross marketplace merchandise value in USD"
+          title="Monthly Platform GMV"
+          subtitle="Real project volume by month"
         >
           <div className="h-64 sm:h-72 w-full pt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={revenueGrowthData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gmvGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#9333EA" stopOpacity={0.4}/>
@@ -229,10 +267,10 @@ export function AdminDashboard() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94A3B8" opacity={0.2} />
                 <XAxis dataKey="month" stroke="#94A3B8" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v / 1000}k`} />
+                <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v / 1000}k`} />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: '#FFF', fontSize: '12px' }}
-                  formatter={(value) => [`$${value.toLocaleString()}`, 'Total GMV']}
+                  formatter={(value) => [`₹${value.toLocaleString('en-IN')}`, 'GMV']}
                 />
                 <Area type="monotone" dataKey="gmv" stroke="#9333EA" strokeWidth={3} fill="url(#gmvGrad)" />
               </AreaChart>
@@ -241,18 +279,18 @@ export function AdminDashboard() {
         </ChartCard>
 
         <ChartCard
-          title="Net 5% Commission Revenue"
-          subtitle="SkillHire platform income after escrow releases"
+          title="Platform Commission (5%)"
+          subtitle="Real revenue from platform fees"
         >
           <div className="h-64 sm:h-72 w-full pt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={revenueGrowthData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94A3B8" opacity={0.2} />
                 <XAxis dataKey="month" stroke="#94A3B8" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v}`} />
+                <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v}`} />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: '#FFF', fontSize: '12px' }}
-                  formatter={(value) => [`$${value.toLocaleString()}`, 'Platform Revenue']}
+                  formatter={(value) => [`₹${value.toLocaleString('en-IN')}`, 'Revenue']}
                 />
                 <Bar dataKey="revenue" fill="#A855F7" radius={[6, 6, 0, 0]} />
               </BarChart>
@@ -270,10 +308,9 @@ export function AdminDashboard() {
                 <Scale className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                 <span>Recent Disputes</span>
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Escrow conflicts requiring administrator decision</p>
             </div>
             <Link to="/admin/disputes" className="text-xs font-bold text-purple-600 dark:text-purple-400 hover:underline">
-              View All Disputes
+              View All
             </Link>
           </div>
 
@@ -290,8 +327,6 @@ export function AdminDashboard() {
                   openedByName: dispute.openedBy?.name || 'User',
                   againstName: dispute.against?.name || 'User',
                   createdAt: dispute.createdAt,
-                  resolution: dispute.resolution,
-                  adminNote: dispute.adminNote,
                 }}
                 isAdminView={true}
               />

@@ -4,23 +4,43 @@ import { Skill } from '../models/skill.model.js';
 import { AppError, asyncHandler } from '../middleware/error.middleware.js';
 import { deleteCacheByPattern } from '../utils/cache.utils.js';
 
-// @desc    Create a new category
-// @route   POST /api/categories
-// @access  Private (Admin only)
+/**
+ * Generate slug from name
+ */
+const generateSlug = (name) => {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+};
+
+/**
+ * Create a new category
+ * @route POST /api/categories
+ * @access Private (Admin)
+ */
 export const createCategory = asyncHandler(async (req, res, next) => {
   const { name, description, icon } = req.body;
 
+  // Generate slug from name
+  const slug = generateSlug(name);
+
   // Check if category exists
-  const categoryExists = await Category.findOne({ name: name.toLowerCase() });
+  const categoryExists = await Category.findOne({ 
+    $or: [{ name: name.toLowerCase() }, { slug }] 
+  });
+  
   if (categoryExists) {
     throw new AppError('Category already exists', 400);
   }
 
   const category = await Category.create({
     name,
+    slug, 
     description,
     icon
   });
+
   await deleteCacheByPattern('categories:*');
 
   res.status(201).json({
@@ -30,9 +50,11 @@ export const createCategory = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get all categories
-// @route   GET /api/categories
-// @access  Public
+/**
+ * Get all categories
+ * @route GET /api/categories
+ * @access Public
+ */
 export const getAllCategories = asyncHandler(async (req, res, next) => {
   const categories = await Category.find({ isActive: true })
     .sort({ name: 1 });
@@ -44,9 +66,11 @@ export const getAllCategories = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get single category by ID
-// @route   GET /api/categories/:id
-// @access  Public
+/**
+ * Get single category
+ * @route GET /api/categories/:id
+ * @access Public
+ */
 export const getCategoryById = asyncHandler(async (req, res, next) => {
   const category = await Category.findById(req.params.id);
 
@@ -60,9 +84,11 @@ export const getCategoryById = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Update category
-// @route   PUT /api/categories/:id
-// @access  Private (Admin only)
+/**
+ * Update category
+ * @route PUT /api/categories/:id
+ * @access Private (Admin)
+ */
 export const updateCategory = asyncHandler(async (req, res, next) => {
   let category = await Category.findById(req.params.id);
 
@@ -72,17 +98,26 @@ export const updateCategory = asyncHandler(async (req, res, next) => {
 
   const { name, description, icon, isActive } = req.body;
 
+  const updateData = {
+    description: description || category.description,
+    icon: icon || category.icon,
+    isActive: isActive !== undefined ? isActive : category.isActive,
+  };
+
+  // Update name and slug if name changed
+  if (name && name !== category.name) {
+    updateData.name = name;
+    updateData.slug = generateSlug(name);
+  }
+
   category = await Category.findByIdAndUpdate(
     req.params.id,
-    {
-      name: name || category.name,
-      description: description || category.description,
-      icon: icon || category.icon,
-      isActive: isActive !== undefined ? isActive : category.isActive
-    },
+    updateData,
     { new: true, runValidators: true }
   );
+
   await deleteCacheByPattern('categories:*');
+
   res.status(200).json({
     success: true,
     message: 'Category updated successfully',
@@ -90,9 +125,11 @@ export const updateCategory = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Delete category
-// @route   DELETE /api/categories/:id
-// @access  Private (Admin only)
+/**
+ * Delete category
+ * @route DELETE /api/categories/:id
+ * @access Private (Admin)
+ */
 export const deleteCategory = asyncHandler(async (req, res, next) => {
   const category = await Category.findById(req.params.id);
 
@@ -109,14 +146,16 @@ export const deleteCategory = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get projects by category
-// @route   GET /api/categories/:id/projects
-// @access  Public
+/**
+ * Get projects by category
+ * @route GET /api/categories/:id/projects
+ * @access Public
+ */
 export const getProjectsByCategory = asyncHandler(async (req, res, next) => {
   const { Project } = await import('../models/project.model.js');
   
   const projects = await Project.find({ 
-    category: req.params.id,
+    categoryId: req.params.id,
     status: 'open'
   })
     .populate('clientId', 'name avatar')

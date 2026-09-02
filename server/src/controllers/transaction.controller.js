@@ -43,7 +43,7 @@ const syncPayoutStatus = async (transactions) => {
           if (['rejected', 'failed', 'reversed', 'cancelled'].includes(payoutStatus)) {
             tx.status = 'failed';
             await tx.save();
-            console.log(`❌ Payout ${match[1]} auto-failed`);
+            console.log(`  Payout ${match[1]} auto-failed`);
           }
         } catch (err) {
           // Payout not found in RazorpayX — leave as is
