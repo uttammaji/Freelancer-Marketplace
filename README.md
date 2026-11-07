@@ -187,7 +187,4 @@ git push origin sanjib     (without fetch first)
 - Don't push if you're not sure
 - Always ask before merging to main
 
----
-
-###  SIMPLE RULE:
-**Your branch = Your name. Push only to your branch. Fetch before push. No GUI.**
+--
