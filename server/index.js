@@ -1,5 +1,4 @@
-// server/index.js
-// Entry point of backend application
+
 
 import dotenv from "dotenv";
 import http from 'http';
