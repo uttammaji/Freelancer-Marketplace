@@ -1,0 +1,235 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&family=Newsreader:ital,wght@1,500;1,600&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+html {
+    font-family: 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+    color-scheme: light;
+}
+
+body {
+    background: radial-gradient(ellipse at 12% 8%, rgba(210, 191, 229, 0.3), transparent 34rem), radial-gradient(ellipse at 88% 18%, rgba(255, 228, 128, 0.18), transparent 30rem), linear-gradient(145deg, #faf9f6 0%, #f5f1eb 52%, #faf9f6 100%);
+    color: #302d28;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: 'ss01' on;
+}
+
+.dark body {
+    background: radial-gradient(ellipse at 12% 8%, rgba(107, 64, 160, 0.2), transparent 34rem), radial-gradient(ellipse at 88% 18%, rgba(184, 133, 15, 0.1), transparent 30rem), linear-gradient(145deg, #12110f 0%, #17141b 52%, #12110f 100%);
+    color: #e8e5de;
+    color-scheme: dark;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-family: 'Manrope', 'DM Sans', system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    color: #211235;
+}
+
+.dark h1,
+.dark h2,
+.dark h3,
+.dark h4,
+.dark h5,
+.dark h6 {
+    color: #fff;
+}
+
+::selection {
+    background: #ffe480;
+    color: #211235;
+}
+
+:focus-visible {
+    outline: 2px solid #8d65b8;
+    outline-offset: 3px;
+}
+
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
+}
+
+.odoo-card {
+    background: #fff;
+    border: 1px solid #e8e5de;
+    border-radius: 20px;
+    box-shadow: 0 2px 6px rgba(43, 35, 23, 0.035), 0 12px 30px -20px rgba(43, 35, 23, 0.16);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.odoo-card-hover {
+    background: #fff;
+    border: 1px solid #e8e5de;
+    border-radius: 20px;
+    box-shadow: 0 2px 6px rgba(43, 35, 23, 0.035), 0 12px 30px -20px rgba(43, 35, 23, 0.16);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.odoo-card-hover:hover {
+    transform: translateY(-3px);
+    border-color: #d5d1c8;
+    box-shadow: 0 16px 34px -18px rgba(43, 35, 23, 0.24);
+}
+
+.dark .odoo-card,
+.dark .odoo-card-hover {
+    background: #1d1b19;
+    border-color: #302d28;
+    box-shadow: 0 8px 26px -18px rgba(0, 0, 0, 0.7);
+}
+
+.market-card {
+    border: 1px solid rgba(255, 255, 255, 0.78);
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.62);
+    -webkit-backdrop-filter: blur(18px) saturate(145%);
+    backdrop-filter: blur(18px) saturate(145%);
+    box-shadow: 0 12px 36px -24px rgba(43, 35, 23, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.market-card:hover {
+    transform: translateY(-2px);
+    border-color: #d2bfe5;
+    box-shadow: 0 20px 40px -28px rgba(43, 35, 23, 0.38);
+}
+
+.dark .market-card {
+    background: rgba(29, 27, 35, 0.66);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 16px 40px -24px rgba(0, 0, 0, 0.72), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.dark .market-card:hover {
+    border-color: #4a3465;
+}
+
+.section-eyebrow {
+    margin-bottom: 12px;
+    color: #6b40a0;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+}
+
+.section-title {
+    font-family: 'Manrope', 'DM Sans', system-ui, sans-serif;
+    color: #211235;
+    font-size: clamp(1.875rem, 5vw, 2.5rem);
+    font-weight: 800;
+    line-height: 1.08;
+}
+
+.section-subtitle {
+    margin-top: 12px;
+    color: #777267;
+    font-size: 1rem;
+    line-height: 1.625;
+}
+
+.editorial-mark {
+    font-family: 'Newsreader', Georgia, serif;
+}
+
+.glass {
+    background: rgba(255, 255, 255, 0.58);
+    border: 1px solid rgba(255, 255, 255, 0.76);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    backdrop-filter: blur(20px) saturate(150%);
+    box-shadow: 0 16px 40px -30px rgba(43, 35, 23, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.dark .glass {
+    background: rgba(29, 27, 35, 0.6);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 18px 44px -30px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.glass-surface {
+    background: rgba(250, 249, 246, 0.62);
+    border-color: rgba(255, 255, 255, 0.74);
+    -webkit-backdrop-filter: blur(22px) saturate(155%);
+    backdrop-filter: blur(22px) saturate(155%);
+    box-shadow: 0 12px 36px -30px rgba(43, 35, 23, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.dark .glass-surface {
+    background: rgba(23, 21, 28, 0.68);
+    border-color: rgba(255, 255, 255, 0.09);
+    box-shadow: 0 18px 42px -30px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.glass-canvas {
+    background-color: transparent;
+}
+
+.text-gradient {
+    background: linear-gradient(90deg, #3d2262, #4d2d7a, #b8850f);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+}
+
+.paper-surface {
+    background-image: radial-gradient(rgba(77, 45, 122, 0.055) 0.65px, transparent 0.65px);
+    background-size: 8px 8px;
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.35s ease-out both;
+}
+
+.font-heading {
+    font-family: 'Manrope', 'DM Sans', system-ui, sans-serif;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+    -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
